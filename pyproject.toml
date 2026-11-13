@@ -21,3 +21,4 @@ pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 110
+extend-exclude = ["notebooks"]
