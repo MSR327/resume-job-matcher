@@ -88,3 +88,13 @@ def test_groq_sets_reasoning_effort_per_model():
 
     groq("k", "qwen/qwen3.8-27b", client=_client(handler)).complete([{"role": "user", "content": "hi"}])
     assert seen["reasoning_effort"] == "none" and seen["model"] == "qwen/qwen3.8-27b"
+
+
+def test_rate_limit_wait_is_capped():
+    replies = [httpx.Response(429, headers={"retry-after": "30"}),
+               httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})]
+    waits = []
+    llm = OpenAICompatLLM("https://x.test/v1", "m", client=_client(lambda r: replies.pop(0)),
+                          rate_limit_retries=1, sleep=waits.append, max_wait=3.0)
+    llm.complete([{"role": "user", "content": "hi"}])
+    assert waits == [3.0]

@@ -81,3 +81,10 @@ def test_explain_coerces_bad_field_types():
     fake = FakeLLM([_good(matched_skills="PyTorch", evidence=[{"claim": "x"}, "junk"])])
     out = explain(fake, "resume", JOB, matched=[], missing=[])
     assert out.ok and out.matched_skills == ["PyTorch"] and out.evidence == []
+
+
+def test_check_citations_normalizes_unicode_hyphens():
+    posting = "Build end-to-end ML pipelines with 3-5 years of experience."
+    ev = [{"claim": "a", "quote": "end\u2011to\u2011end ML pipelines"},
+          {"claim": "b", "quote": "3\u20135\u00a0years"}]
+    assert len(check_citations(ev, posting)) == 2

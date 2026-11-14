@@ -26,7 +26,12 @@ Answer with one JSON object only:
 Rules: every "quote" must be copied character-for-character from the posting (5-25 words).
 Give 2-4 evidence items. Do not invent skills that neither text mentions."""
 
-_TRANSLATE = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-"})
+# Typography the LLM may "correct" while copying: curly quotes, dashes, non-breaking hyphen/space.
+_TRANSLATE = str.maketrans({
+    "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"',
+    "\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u2014": "-", "\u2212": "-",
+    "\u00a0": " ", "\u202f": " ",
+})
 
 
 @dataclass

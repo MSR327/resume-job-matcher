@@ -51,6 +51,21 @@ class LLM(Protocol):
     ) -> LLMResponse: ...
 
 
+def load_api_key(name: str = "GROQ_API_KEY", env_file: str = ".env") -> str | None:
+    """Key from the environment, else from a git-ignored .env file. Never logged or printed."""
+    import os
+    from pathlib import Path
+
+    if os.environ.get(name):
+        return os.environ[name]
+    p = Path(env_file)
+    for line in p.read_text().splitlines() if p.exists() else []:
+        k, _, v = line.partition("=")
+        if k.strip() == name and v.strip():
+            return v.strip().strip('"')
+    return None
+
+
 def estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
     p_in, p_out = PRICES.get(model, (0.0, 0.0))
     return (prompt_tokens * p_in + completion_tokens * p_out) / 1e6
@@ -69,11 +84,13 @@ class OpenAICompatLLM:
         rate_limit_retries: int = 0,
         sleep: Callable[[float], None] = time.sleep,
         extra_body: dict | None = None,
+        max_wait: float = 60.0,
     ):
         """`rate_limit_retries`: extra tries after HTTP 429 (0 for the app: fail fast and fall back;
         a few for batch jobs, which can afford to wait)."""
         self.rate_limit_retries, self._sleep = rate_limit_retries, sleep
         self.extra_body = extra_body or {}
+        self.max_wait = max_wait  # cap on a single rate-limit wait (short for the interactive app)
         self.url = base_url.rstrip("/") + "/chat/completions"
         self.model = model
         self._headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
@@ -97,7 +114,7 @@ class OpenAICompatLLM:
                 wait = float(r.headers.get("retry-after", 2 ** (attempt + 2)))
             except ValueError:
                 wait = 2.0 ** (attempt + 2)
-            self._sleep(min(wait, 60.0))
+            self._sleep(min(wait, self.max_wait))
         if r.status_code != 200:
             # Status only: response bodies can echo request details, and we never log keys or resumes.
             raise LLMError(f"HTTP {r.status_code} from {self.model}")
