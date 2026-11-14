@@ -1,6 +1,6 @@
 """Explanation quality + cost/latency, through the exact app pipeline (ONNX models, Groq, citation check).
 
-    python scripts/eval_explain.py [--n 20]
+    python scripts/eval_explain.py [--n 10]
 
 - citation pass rate: share of LLM quotes found verbatim (normalized) in the posting
 - missing-skill precision (lexical, approximate): share of "missing" skills whose text does not
@@ -19,7 +19,7 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 from skillex.onnx_predict import OnnxSkillExtractor
 
-from jobmatch.config import ALPHA, SKILL_MODEL, TAU
+from jobmatch.config import ALPHA, MODE, SKILL_MODEL, TAU
 from jobmatch.embed import OnnxEmbedder
 from jobmatch.index import JobIndex, clean_skills
 from jobmatch.llm import groq, load_api_key
@@ -34,7 +34,7 @@ def _norm(s: str) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=20)
+    ap.add_argument("--n", type=int, default=10)  # Groq free tier: 200k tokens/day for the explainer
     ap.add_argument("--out", default="results/explanations.json")
     args = ap.parse_args()
 
@@ -54,7 +54,7 @@ def main() -> None:
     failed_quotes = []
     for i, q in enumerate(queries, 1):
         resume = _norm(q["resume"])
-        for m in matcher.match(q["resume"], k=5):
+        for m in matcher.match(q["resume"], k=5, mode=MODE):
             e = m.explanation
             if not (e and e.ok):
                 continue
@@ -68,7 +68,7 @@ def main() -> None:
     s = summarize(tel.read())
     rows = tel.read()
     out = {
-        "n_resumes": len(queries), "k": 5,
+        "n_resumes": len(queries), "k": 5, "mode": MODE,
         "citation_pass_rate": s["citation_pass_rate"],
         "missing_skill_precision_lexical": miss_absent / miss_total if miss_total else None,
         "n_missing_skills": miss_total,
