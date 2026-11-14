@@ -94,7 +94,7 @@ User accounts or stored resumes, live scraping, LLM fine-tuning, non-English or 
 |---|---|
 | Dataset license disallows reuse | Check on day 1; switch dataset / publish derived features only |
 | Groq free-tier limits | Bulk eval runs on Kaggle with vLLM; Groq only for the demo plus a small sample |
-| Streamlit 1 GB RAM | ONNX skill model (271 MB) + bge-small (~130 MB) + index (~50 MB); otherwise precompute more |
+| Streamlit RAM (690 MB min, ~2.7 GB max per the docs, Feb 2024; was assumed 1 GB) | Torch-free ONNX models; app measured at ~970 MB RSS |
 | Synthetic resumes leak job wording | Paraphrase prompt plus an n-gram overlap filter; report overlap |
 | LLM judge disagrees with the human | Report κ honestly; if low, lean on L1 and the human labels |
 
@@ -103,3 +103,15 @@ User accounts or stored resumes, live scraping, LLM fine-tuning, non-English or 
 1. Data + license + data card · 2. Offline index on Kaggle → HF `v1` · 3. Retrieval + re-rank + tests ·
 4–5. Eval sets + ablations · 5. Human labels + judge agreement · 6–7. LLM explanations + citation check ·
 8. Streamlit app + Stats + fallback · 9. CI + eval gate + Docker + deploy · 10. README, results, demo GIF.
+
+## 9. Changes after implementation (2026-11-15)
+
+- **Corpus:** 7,817 tech jobs after filtering and dedup (not ~15k).
+- **Index format:** each distinct skill phrase is embedded and stored once (152k phrases); one-word SKILL spans and spans
+  over 10 words are dropped. Index v1 is 179 MB.
+- **LLMs:** the Groq lineup changed. Explanations and judge use `openai/gpt-oss-120b`; synthetic resumes use
+  `qwen/qwen3.8-27b` (a different family, to limit judge self-preference). Free tier: 1k requests/day and 8k tokens/min
+  per model, which caps L2 at ~25-30 resumes rather than ~100.
+- **Retrieval:** on L1 dev, dense retrieval was weak (bge reads the first 512 tokens, mostly company boilerplate) and
+  fusing it lowered BM25's MRR. Chunked max-sim embeddings helped dense alone but not the fusion, so they were dropped.
+  BM25 + skill re-rank was added as a configuration; the app default is the best dev configuration.
