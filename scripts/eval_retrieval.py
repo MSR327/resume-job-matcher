@@ -27,8 +27,8 @@ from jobmatch.retrieve import HybridRetriever
 from jobmatch.synth import split_dev_test
 
 QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
-TAUS = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85]
-ALPHAS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+TAUS = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+ALPHAS = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 
 def metrics(ranked, gold) -> dict:
