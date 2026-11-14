@@ -42,14 +42,53 @@ flowchart LR
 
 ## Results
 
-TBD
+**Headline:** on held-out synthetic resumes, **keyword search (BM25) + skill-coverage re-ranking** finds the right job in
+the top 10 **77%** of the time (MRR 0.57). Re-ranking by skill coverage adds **+5.1 points Recall@10** over BM25 alone
+(95% CI +0.7 to +10.2). Explanations quote the posting verbatim **95%** of the time.
+
+**Finding: dense retrieval hurt.** bge-small sees only the first 512 tokens of a posting, which are mostly company boilerplate,
+and fusing it with BM25 lowered MRR by 13 points versus BM25 alone. Chunked max-sim embeddings helped dense on its own
+(R@10 0.50 → 0.57 on a 30-resume preview of dev) but not the fusion, so the app ships BM25 + re-rank (chosen on dev, not test). Caveat: synthetic
+resumes are written from one posting, which favors exact tool names; L2 checks whether that holds for "any good match".
+
+**L1: synthetic resumes** (test n = 137; tuned on dev n = 100; mean 4-gram overlap with the source posting 0.7%)
+
+| configuration | Recall@1 | Recall@5 | Recall@10 | MRR |
+|---|---|---|---|---|
+| bm25 | 0.438 | 0.693 | 0.723 | 0.546 |
+| dense | 0.204 | 0.328 | 0.431 | 0.272 |
+| hybrid | 0.299 | 0.540 | 0.657 | 0.416 |
+| bm25+rerank ← app | 0.453 | 0.730 | 0.774 | 0.574 |
+| hybrid+rerank | 0.387 | 0.606 | 0.715 | 0.489 |
+
+Paired bootstrap (95% CI, test):
+
+- bm25+rerank - bm25, MRR: **+0.028** (-0.002 to +0.061)
+- bm25+rerank - bm25, R@10: **+0.051** (+0.007 to +0.102)
+- hybrid+rerank - hybrid, MRR: **+0.073** (+0.018 to +0.128)
+- hybrid+rerank - hybrid, R@10: **+0.058** (+0.007 to +0.117)
+- bm25 - hybrid, MRR: **+0.131** (+0.067 to +0.194)
+
+Tuned on dev: bm25: τ=0.85, α=0.2, hybrid: τ=0.85, α=0.3. App configuration (best dev MRR): `bm25+rerank`.
+
+**Explanations and serving** (10 test resumes × top 5, app pipeline, laptop CPU)
+
+- citation pass rate **95%** (quotes found verbatim in the posting)
+- missing-skill precision (lexical) **96%** (n = 304)
+- LLM failure rate 0.0% (falls back to skill overlap)
+- latency p50: skill extraction 0.46 s, retrieval 0.002 s, re-rank 0.09 s; LLM explanations 54 s (p95 65 s), almost all of it waiting on Groq's free-tier limit of 8k tokens/min, since one request needs ~8k tokens. Unthrottled, a full request took ~3 s.
+- 8016 tokens and $0.0023 per request at list price
+
+Notes: the explanation eval used 5 explanations per request with 6,000-character posting context. After seeing the
+free-tier token limit, the app explains the top 3 with 4,000 characters (~4k tokens per request) so that about two
+requests per minute get explanations; the rest fall back to ranked jobs with skill overlap.
 
 ## Evaluation design
 
 | Layer | Question | Method |
 |---|---|---|
 | L1 synthetic | Does the right job come back? | For 300 sampled jobs, an LLM (qwen3.8-27b) writes a fitting resume **in its own words** (resumes sharing >10% of 4-grams with the posting are rejected). Recall@k / MRR of the source job. Split 100 dev (tuning) / 200 test (scored once). Reposts with identical text count as the same job. |
-| L2 LLM judge | Are the top 10 good matches? | gpt-oss-120b grades each (resume, job) pair 0–3 with a written rubric → nDCG@10 per configuration. The judge is a different model family from the resume writer, to limit self-preference. |
+| L2 LLM judge | Are the top 10 good matches? | IBM Granite-3.3-8B-Instruct (open weights, free Kaggle T4s) grades every (resume, job) pair in each configuration's top 10, 0–3 with a written rubric → nDCG@10. 60 test resumes, 1,507 pairs. The judge is a different model family from the resume writer (Qwen) and the explainer (gpt-oss), to limit self-preference. |
 | L3 human check | Can the judge be trusted? | 50 pairs, sampled evenly across the judge's grades, labeled blind by me with the same rubric → quadratic-weighted Cohen's κ. |
 | Explanations | Are they grounded? | Citation pass rate, missing-skill precision, latency and $/request through the exact app pipeline. |
 
@@ -72,6 +111,10 @@ precomputed vectors, no models or network) and fails if Recall@10 or MRR drops b
   The app runs in ~970 MB.
 - **Hosted model retired.** The first synthetic-data run hit 404s: the Groq model in my config no longer existed, and the
   loop silently skipped every job. Now a circuit breaker stops after 15 failures in a row.
+- **Free-tier LLM limits shaped the evaluation.** Groq's free tier allows 200k tokens/day and 8k tokens/minute per model
+  (and 1k output tokens/minute for some models), learned from 429 responses. Synthetic-resume generation stopped at 237
+  (100 dev / 137 test) when the daily cap hit, and the LLM judge moved to an open model on a free Kaggle GPU, where
+  ~1.5k judgments cost nothing. One explained app request uses ~4–8k tokens, so the app explains only the top 3.
 - **Typography vs. citations.** gpt-oss writes non-breaking hyphens (`end‑to‑end`), which failed exact-quote checks for
   reasons unrelated to grounding; the check normalizes them.
 
@@ -88,12 +131,15 @@ Or with Docker: `docker build -t jobmatch . && docker run -p 8501:8501 -e GROQ_A
 Reproduce the evaluation (needs `pip install -e ".[index]" sentence-transformers` and a Groq key):
 
 ```bash
-python scripts/make_synth.py --n 300     # synthetic resumes (resumable)
-python scripts/eval_retrieval.py         # L1 + tuning of tau/alpha on dev
-python scripts/eval_judge.py --n 30      # L2 nDCG@10 with the LLM judge
+python scripts/make_synth.py --n 300     # synthetic resumes (resumable; stopped at 237 by the daily token cap)
+python scripts/eval_retrieval.py         # L1 + tuning of tau/alpha on dev -> results/l1_retrieval.json
+python scripts/eval_judge.py pairs       # L2: top-10 of each config -> data/eval/l2_pairs.json
+# run notebooks/02_judge.ipynb on a Kaggle GPU (uploads judgments to the HF dataset repo), then:
+python scripts/eval_judge.py score       # nDCG@10 per config -> results/l2_judge.json
 streamlit run tools/label_app.py         # L3 blind human labels, then:
 python scripts/agreement.py
-python scripts/eval_explain.py --n 20    # citations, missing-skill precision, latency, cost
+python scripts/eval_explain.py --n 10    # citations, missing-skill precision, latency, cost
+python scripts/report.py                 # results/*.json -> the tables above
 ```
 
 ## Data and privacy
@@ -117,6 +163,7 @@ python scripts/eval_explain.py --n 20    # citations, missing-skill precision, l
 | `src/jobmatch/` | corpus filter, index, retrieval, re-rank, LLM client, explanations, judge, metrics, telemetry, ONNX embedder, pipeline |
 | `streamlit_app.py`, `pages/` | app + Stats page |
 | `notebooks/01_build_index.ipynb` | Kaggle build of the index |
+| `notebooks/02_judge.ipynb` | Kaggle L2 judge (Granite-3.3-8B) |
 | `scripts/` | eval scripts, smoke test, CI fixture builder, parity checks |
 | `tools/label_app.py` | blind labeling UI |
 | `tests/` | unit tests + eval gate (no network) |
