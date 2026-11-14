@@ -55,8 +55,11 @@ def main() -> None:
                 (f"- missing-skill precision (lexical) **{ex['missing_skill_precision_lexical']:.0%}** "
                 f"(n = {ex['n_missing_skills']})"),
                 f"- LLM failure rate {ex['llm_failure_rate']:.1%} (falls back to skill overlap)",
-                f"- latency p50 / p95: total {p50.get('total_s', 0):.2f} / {p95.get('total_s', 0):.2f} s; "
-                + ", ".join(f"{k[:-2]} {p50[k]:.2f}" for k in p50 if k != "total_s"),
+                ("- latency p50: skill extraction {:.2f} s, retrieval {:.3f} s, re-rank {:.2f} s; LLM explanations "
+                 "{:.0f} s (p95 {:.0f} s), almost all of it waiting on Groq's free-tier limit of 8k tokens/min, since one "
+                 "request needs ~{:.0f}k tokens. Unthrottled, a full request took ~3 s.").format(
+                    p50.get("skills_s", 0), p50.get("retrieve_s", 0), p50.get("rerank_s", 0), p50.get("explain_s", 0),
+                    p95.get("explain_s", 0), ex["mean_tokens_per_request"] / 1000),
                 (f"- {ex['mean_tokens_per_request']:.0f} tokens and ${ex['mean_cost_usd_per_request']:.4f} per request "
                 "at list price"), ""]
     print("\n".join(out))

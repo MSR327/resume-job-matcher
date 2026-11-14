@@ -1,0 +1,62 @@
+{
+  "n_resumes": 10,
+  "k": 5,
+  "mode": "bm25",
+  "citation_pass_rate": 0.9476439790575916,
+  "missing_skill_precision_lexical": 0.9605263157894737,
+  "n_missing_skills": 304,
+  "llm_failure_rate": 0.0,
+  "latency_p50_s": {
+    "explain_s": 54.41432679150603,
+    "rerank_s": 0.08886974948109128,
+    "retrieve_s": 0.00218939600745216,
+    "skills_s": 0.45868141649407335,
+    "total_s": 54.940220937511185
+  },
+  "latency_p95_s": {
+    "explain_s": 65.12029201048718,
+    "rerank_s": 0.18863500884035597,
+    "retrieve_s": 0.015937505924375702,
+    "skills_s": 0.5313861125061521,
+    "total_s": 65.70154121060041
+  },
+  "mean_tokens_per_request": 8016.1,
+  "mean_cost_usd_per_request": 0.002321895,
+  "examples_with_dropped_quotes": [
+    {
+      "job": "LLM Data Scientist",
+      "kept": 3,
+      "total": 4
+    },
+    {
+      "job": "Co-founder NLP ML/AI Developer",
+      "kept": 3,
+      "total": 4
+    },
+    {
+      "job": "Azure DevOps Engineer",
+      "kept": 3,
+      "total": 4
+    },
+    {
+      "job": "Senior DevOps Engineer- (Only W2)",
+      "kept": 3,
+      "total": 4
+    },
+    {
+      "job": "Site Reliability Engineer, Enterprise Justice",
+      "kept": 3,
+      "total": 4
+    },
+    {
+      "job": "AWS Cloud Infrastructure and DevOps Technical SME",
+      "kept": 3,
+      "total": 4
+    },
+    {
+      "job": "AWS Cloud Infrastructure and DevOps Technical SME",
+      "kept": 0,
+      "total": 4
+    }
+  ]
+}
