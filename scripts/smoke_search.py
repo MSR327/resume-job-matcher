@@ -39,7 +39,7 @@ def main() -> None:
     resume_skills = sorted({s["text"] for s in SkillExtractor("srish327/deberta-v3-skillspan-crf").extract(RESUME)["spans"]})
     print("\nresume skills:", resume_skills)
     rvec = emb.encode(resume_skills, normalize_embeddings=True) if resume_skills else np.zeros((0, 384))
-    cov = {d: skill_coverage(rvec, idx.skill_vecs[d])[0] for d, _ in cands}
+    cov = {d: skill_coverage(rvec, idx.job_skill_vecs(d))[0] for d, _ in cands}
     for name, ranked in [("retrieval only", cands), ("+ skill re-rank", rerank(cands, cov))]:
         print(f"\n== {name} ==")
         for d, s in ranked[:5]:

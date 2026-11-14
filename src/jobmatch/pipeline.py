@@ -61,7 +61,7 @@ class Matcher:
             with stage("retrieve"):
                 cands = self.retriever.search(resume, k=pool, depth=depth, mode=mode)
             with stage("rerank"):
-                cov = {d: skill_coverage(rvec, self.index.skill_vecs[d], self.tau) for d, _ in cands}
+                cov = {d: skill_coverage(rvec, self.index.job_skill_vecs(d), self.tau) for d, _ in cands}
                 ranked = rerank(cands, {d: c for d, (c, _) in cov.items()}, self.alpha) if skill_rerank else cands
             out = []
             for d, score in ranked[:k]:

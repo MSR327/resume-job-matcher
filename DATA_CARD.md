@@ -31,8 +31,10 @@ Exact counts and the build commit are in `v1/manifest.json`.
 | `jobs.parquet` | `job_id, title, company, location, description, url, listed_at` |
 | `vectors.npy` | `[n_jobs, 384]` float16 job embeddings |
 | `bm25/` | `bm25s` index over the same texts |
-| `skills.json` | per job: list of `{type, text}` |
-| `skill_vecs.npz` | skill-phrase embeddings (`flat` + `offsets`) |
+| `skills.json` | per job: list of `{type, text}` (one-word SKILL spans and spans over 10 words removed, case-deduped) |
+| `phrases.json` | distinct skill phrases across all jobs |
+| `phrase_vecs.npy` | `[n_phrases, 384]` float16 phrase embeddings (each phrase stored once) |
+| `skill_ids.npz` | per job: row ids into `phrases` (`flat` + `offsets`), aligned with `skills.json` |
 | `manifest.json` | version, counts, models, build commit |
 
 ## Limitations
