@@ -20,4 +20,6 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -t jobmatch .
       # The image must run without PyTorch (ONNX only) and import the app's modules.
-      - run: docker run --rm --entrypoint python jobmatch -c "import importlib.util as u, sys; sys.path.insert(0, 'src'); assert u.find_spec('torch') is None; import jobmatch.pipeline, jobmatch.embed, skillex.onnx_predict; print('ok: torch-free')"
+      - name: image runs without torch
+        run: |
+          docker run --rm --entrypoint python jobmatch -c "import importlib.util as u, sys; sys.path.insert(0, 'src'); assert u.find_spec('torch') is None; import jobmatch.pipeline, jobmatch.embed, skillex.onnx_predict; print('torch-free image OK')"
