@@ -21,9 +21,12 @@ Rubric:
 Answer with one JSON object: {{"reason": "one sentence", "grade": 0-3}}"""
 
 
+MAX_CHARS = 3000  # ~750 tokens each: the requirements are usually in the first half of a posting
+
+
 def judge_messages(resume: str, job: dict) -> list[dict]:
-    user = (f"<resume>\n{resume[:5000]}\n</resume>\n\n<posting>\nTitle: {job['title']}\n\n"
-            f"{job['description'][:5000]}\n</posting>")
+    user = (f"<resume>\n{resume[:MAX_CHARS]}\n</resume>\n\n<posting>\nTitle: {job['title']}\n\n"
+            f"{job['description'][:MAX_CHARS]}\n</posting>")
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
 
 
