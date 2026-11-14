@@ -8,6 +8,7 @@ SKILL_MODEL = "srish327/deberta-v3-skillspan-crf"
 MODE = "bm25"
 TAU = 0.85  # soft skill match: cosine >= TAU between skill-phrase embeddings
 ALPHA = 0.2  # final score = ALPHA * retrieval + (1 - ALPHA) * skill coverage
+EXPLAIN_TOP = 3  # LLM explanations for the top 3 only: ~4k tokens/request vs Groq free tier's 8k tokens/minute
 
 SAMPLE_RESUME = """Machine learning engineer with 2 years of experience. Fine-tuned transformer models (BERT, DeBERTa)
 for named entity recognition in PyTorch and Hugging Face, beating a published baseline. Built FastAPI services and

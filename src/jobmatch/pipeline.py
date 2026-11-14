@@ -50,8 +50,10 @@ class Matcher:
 
     def match(
         self, resume: str, k: int = 5, mode: str = "hybrid", skill_rerank: bool = True, explain_top: bool = True,
-        depth: int = 100, pool: int = 50,
+        depth: int = 100, pool: int = 50, explain_n: int | None = None,
     ) -> list[Match]:
+        """`explain_n`: explain only the first n matches (None = all k). Each explanation costs ~1.5k LLM tokens,
+        and free-tier per-minute token limits make this the main lever on how many requests get explained."""
         ctx = self.telemetry.request() if self.telemetry else nullcontext(None)
         with ctx as rec:
             stage = rec.stage if rec else (lambda name: nullcontext())
@@ -70,11 +72,12 @@ class Matcher:
                 miss = set(cov[d][1])
                 out.append(Match(d, self.index.jobs.iloc[d].to_dict(), float(score), cov[d][0],
                                  [n for i, n in enumerate(names) if i not in miss], [names[i] for i in sorted(miss)]))
-            if self.llm and explain_top and out:
+            todo = out[:explain_n] if explain_n is not None else out
+            if self.llm and explain_top and todo:
                 # One LLM call per job, in parallel: wall time ~ the slowest call, not the sum.
-                with stage("explain"), ThreadPoolExecutor(max_workers=len(out)) as workers:
-                    exps = workers.map(lambda m: explain(self.llm, resume, m.job, m.matched, m.missing), out)
-                    for m, e in zip(out, exps):
+                with stage("explain"), ThreadPoolExecutor(max_workers=len(todo)) as workers:
+                    exps = workers.map(lambda m: explain(self.llm, resume, m.job, m.matched, m.missing), todo)
+                    for m, e in zip(todo, exps):
                         m.explanation = e
             if rec:
                 ex = [m.explanation for m in out if m.explanation]

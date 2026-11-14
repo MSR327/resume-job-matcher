@@ -67,3 +67,10 @@ def test_skill_rerank_can_be_disabled():
     m = _matcher()
     a = [x.job["job_id"] for x in m.match("Python Django", k=3, mode="bm25", skill_rerank=False)]
     assert a[0] == "a"
+
+
+def test_explain_only_first_n():
+    reply = json.dumps({"fit_summary": "ok", "matched_skills": [], "missing_skills": [], "evidence": []})
+    fake = FakeLLM(lambda messages: reply)
+    out = _matcher(fake).match("I know Kubernetes and Terraform, some Python", k=2, mode="bm25", explain_n=1)
+    assert out[0].explanation.ok and out[1].explanation is None and len(fake.calls) == 1

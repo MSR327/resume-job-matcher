@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from .llm import LLM, LLMError, estimate_cost
 
-MAX_POSTING_CHARS = 6000  # ~1.5k tokens; long postings are mostly boilerplate at the end
+MAX_POSTING_CHARS = 4000  # ~1k tokens; requirements usually come early, the tail is mostly boilerplate
 MAX_RESUME_CHARS = 6000
 
 SYSTEM = """You compare a candidate's resume with one job posting.

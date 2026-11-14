@@ -15,7 +15,16 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from jobmatch.config import ALPHA, INDEX_REPO, INDEX_VERSION, MODE, SAMPLE_RESUME, SKILL_MODEL, TAU
+from jobmatch.config import (
+    ALPHA,
+    EXPLAIN_TOP,
+    INDEX_REPO,
+    INDEX_VERSION,
+    MODE,
+    SAMPLE_RESUME,
+    SKILL_MODEL,
+    TAU,
+)
 from jobmatch.index import clean_skills
 from jobmatch.telemetry import Telemetry
 from jobmatch.ui import render_footer, render_match
@@ -77,7 +86,7 @@ with st.sidebar:
     mode = st.radio("Retrieval", modes, index=modes.index(MODE),
                     help="bm25 = keywords · dense = embeddings · hybrid = both, fused with RRF. Default chosen on the dev set.")
     skill_rerank = st.toggle("Skill-coverage re-rank", value=True)
-    explain_on = st.toggle("LLM explanations", value=True)
+    explain_on = st.toggle("LLM explanations", value=True, help=f"For the top {EXPLAIN_TOP} matches (free-tier LLM limits)")
     st.divider()
     st.markdown(
         "**How it works:** BM25 + bge-small embeddings → Reciprocal Rank Fusion → re-rank by how many of the job's "
@@ -104,7 +113,8 @@ if go:
         st.warning("No LLM key configured, so showing ranked jobs and skill overlap without explanations.")
     t0 = time.perf_counter()
     with st.spinner("Matching..."):
-        matches = matcher.match(resume, k=k, mode=mode, skill_rerank=skill_rerank, explain_top=explain_on)
+        matches = matcher.match(resume, k=k, mode=mode, skill_rerank=skill_rerank, explain_top=explain_on,
+                                explain_n=EXPLAIN_TOP)
     elapsed = time.perf_counter() - t0
 
     for rank, m in enumerate(matches, 1):
