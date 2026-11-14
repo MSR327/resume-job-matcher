@@ -1,8 +1,10 @@
 """L2 eval: an LLM judge grades every (resume, job) in each configuration's top 10 -> nDCG@10.
 
-    python scripts/eval_judge.py pairs [--n 60]     # local: top-10 per config -> data/eval/l2_pairs.json
-    # Kaggle GPU: notebooks/02_judge.ipynb grades the pairs -> data/eval/judgments.jsonl (via the HF dataset repo)
-    python scripts/eval_judge.py score              # local: judgments -> results/l2_judge.json
+    python scripts/eval_judge.py pairs [--n 60] [--split test|dev]   # top-10 per config -> data/eval/l2_pairs[_dev].json
+    # Kaggle GPU: notebooks/02_judge.ipynb grades the pairs -> data/eval/judgments[_dev].jsonl (via the HF dataset repo)
+    python scripts/eval_judge.py score [--split test|dev]             # judgments -> results/l2_judge[_dev].json
+
+The test split is scored once. The dev split exists to choose the app configuration under L2 without looking at test.
 
 The judge (IBM Granite-3.3-8B-Instruct, open weights, run on a free Kaggle GPU) is a different model family from
 the resume writer (Qwen) and the app's explainer (gpt-oss), to limit self-preference. Groq's free tier
@@ -17,12 +19,15 @@ from pathlib import Path
 
 import numpy as np
 
-PAIRS = Path("data/eval/l2_pairs.json")
-JUDGMENTS = Path("data/eval/judgments.jsonl")
+
+def paths(split: str) -> tuple[Path, Path, str]:
+    sfx = "" if split == "test" else f"_{split}"
+    return Path(f"data/eval/l2_pairs{sfx}.json"), Path(f"data/eval/judgments{sfx}.jsonl"), f"results/l2_judge{sfx}.json"
+
 CONFIGS = ("bm25", "dense", "hybrid", "bm25+rerank", "hybrid+rerank")
 
 
-def make_pairs(n: int) -> None:
+def make_pairs(n: int, split: str = "test") -> None:
     from huggingface_hub import snapshot_download
     from sentence_transformers import SentenceTransformer
     from skillex.predict import SkillExtractor
@@ -37,8 +42,8 @@ def make_pairs(n: int) -> None:
     root = snapshot_download("srish327/tech-jobs-index", repo_type="dataset", allow_patterns=["v1/*"])
     idx = JobIndex.load(f"{root}/v1")
     items = [json.loads(x) for x in Path("data/eval/synth.jsonl").read_text().splitlines()]
-    _, test = split_dev_test(items, 100)
-    queries = test[-n:]  # the end of test: disjoint from the CI-gate queries at the start
+    dev, test = split_dev_test(items, 100)
+    queries = test[-n:] if split == "test" else dev[:n]  # end of test: disjoint from the CI-gate queries at the start
 
     emb = SentenceTransformer("BAAI/bge-small-en-v1.5")
     ext = SkillExtractor("srish327/deberta-v3-skillspan-crf")
@@ -56,19 +61,21 @@ def make_pairs(n: int) -> None:
             cov = {d: skill_coverage(rvec, idx.job_skill_vecs(d), tau)[0] for d, _ in cands}
             t[f"{base}+rerank"] = [d for d, _ in rerank(cands, cov, alpha)[:10]]
         out.append({"resume_job_id": q["job_id"], "top10": {c: [ids[d] for d in t[c]] for c in CONFIGS}})
-    PAIRS.write_text(json.dumps({"index_version": "v1", "tuned": tuned, "queries": out}, indent=1))
+    pairs_path = paths(split)[0]
+    pairs_path.write_text(json.dumps({"index_version": "v1", "split": split, "tuned": tuned, "queries": out}, indent=1))
     n_pairs = len({(q["resume_job_id"], j) for q in out for js in q["top10"].values() for j in js})
-    print(f"{len(out)} resumes, {n_pairs} unique pairs -> {PAIRS}")
+    print(f"{len(out)} resumes, {n_pairs} unique pairs -> {pairs_path}")
 
 
 def _dcg(gains) -> float:
     return sum((2**g - 1) / np.log2(i + 2) for i, g in enumerate(gains[:10]))
 
 
-def score(out_path: str) -> None:
-    data = json.loads(PAIRS.read_text())
+def score(split: str = "test") -> None:
+    pairs_path, judgments, out_path = paths(split)
+    data = json.loads(pairs_path.read_text())
     grade, judge_model = {}, None
-    for line in JUDGMENTS.read_text().splitlines():
+    for line in judgments.read_text().splitlines():
         r = json.loads(line)
         grade[(r["resume_job_id"], r["job_id"])] = r["grade"]
         judge_model = r.get("model", judge_model)
@@ -91,7 +98,7 @@ def score(out_path: str) -> None:
     src = [g for g in src if g is not None]
     grades = [g for g in grade.values() if g is not None]
     other = [g for (rid, j), g in grade.items() if rid != j and g is not None]
-    out = {"n_resumes": len(data["queries"]), "n_pairs": len(grade), "judge": judge_model,
+    out = {"split": split, "n_resumes": len(data["queries"]), "n_pairs": len(grade), "judge": judge_model,
            "failed_judgments": sum(g is None for g in grade.values()),
            "configs": {c: {k: v for k, v in m.items() if k != "per_query_ndcg"} for c, m in res.items()},
            "source_job_grade_mean": float(np.mean(src)) if src else None, "n_source_judged": len(src),
@@ -113,9 +120,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("stage", choices=["pairs", "score"])
     ap.add_argument("--n", type=int, default=60)
-    ap.add_argument("--out", default="results/l2_judge.json")
+    ap.add_argument("--split", choices=["test", "dev"], default="test")
     args = ap.parse_args()
-    make_pairs(args.n) if args.stage == "pairs" else score(args.out)
+    make_pairs(args.n, args.split) if args.stage == "pairs" else score(args.split)
 
 
 if __name__ == "__main__":

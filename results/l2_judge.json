@@ -1,4 +1,5 @@
 {
+  "split": "test",
   "n_resumes": 60,
   "n_pairs": 1507,
   "judge": "ibm-granite/granite-3.3-8b-instruct",
