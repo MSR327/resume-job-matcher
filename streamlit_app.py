@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from jobmatch.config import ALPHA, INDEX_REPO, INDEX_VERSION, MODE, SAMPLE_RESUME, SKILL_MODEL, TAU
 from jobmatch.index import clean_skills
 from jobmatch.telemetry import Telemetry
+from jobmatch.ui import render_footer, render_match
 
 TELEMETRY = Path(tempfile.gettempdir()) / "jobmatch_telemetry.jsonl"
 
@@ -60,11 +61,6 @@ def load_matcher():
         alpha=ALPHA,
         tau=TAU,
     )
-
-
-def chips(items: list[str], color: str, limit: int = 12) -> str:
-    shown = " ".join(f":{color}-badge[{s.replace('[', '(').replace(']', ')')}]" for s in items[:limit])
-    return shown + (f" *+{len(items) - limit} more*" if len(items) > limit else "")
 
 
 st.title("🧭 Resume → Job Matcher")
@@ -112,36 +108,5 @@ if go:
     elapsed = time.perf_counter() - t0
 
     for rank, m in enumerate(matches, 1):
-        j = m.job
-        with st.container(border=True):
-            left, right = st.columns([4, 1])
-            title = f"[{j['title']}]({j['url']})" if j.get("url") else j["title"]
-            left.markdown(f"#### {rank}. {title}\n**{j['company']}** · {j.get('location') or 'location n/a'}")
-            right.metric("Skill coverage", f"{m.coverage:.0%}", help="Share of the job's extracted skills your resume "
-                         "covers (soft match on skill-phrase embeddings)")
-            e = m.explanation
-            if e is not None and e.ok:
-                st.markdown(e.fit_summary)
-                have, miss = e.matched_skills, e.missing_skills
-            else:
-                if e is not None:
-                    st.info("Explanation unavailable right now (LLM busy or failed), showing skill overlap only.")
-                have, miss = m.matched, m.missing
-            if have:
-                st.markdown("**You have:** " + chips(have, "green"))
-            if miss:
-                st.markdown("**Missing:** " + chips(miss, "orange"))
-            if e is not None and e.ok and e.evidence:
-                with st.expander(f"Evidence from the posting ({e.citations_kept}/{e.citations_total} quotes verified)"):
-                    for ev in e.evidence:
-                        st.markdown(f"> {ev['quote']}\n\n{ev['claim']}")
-            with st.expander("Job description"):
-                st.write(j["description"][:4000] + ("..." if len(j["description"]) > 4000 else ""))
-
-    ex = [m.explanation for m in matches if m.explanation]
-    cost = sum(e.cost_usd for e in ex)
-    kept, total = sum(e.citations_kept for e in ex), sum(e.citations_total for e in ex)
-    st.caption(
-        f"{elapsed:.1f} s · {sum(e.prompt_tokens + e.completion_tokens for e in ex):,} LLM tokens · "
-        f"~${cost:.4f} at list price · quotes verified {kept}/{total} · index {INDEX_VERSION}"
-    )
+        render_match(rank, m)
+    render_footer(matches, elapsed, INDEX_VERSION)

@@ -11,7 +11,7 @@ dependencies = ["numpy", "pandas", "pyarrow", "bm25s>=0.2", "httpx"]
 
 [project.optional-dependencies]
 index = ["sentence-transformers>=3", "skillex @ git+https://github.com/MSR327/skillspan-ner.git", "huggingface_hub"]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "streamlit==1.67.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
