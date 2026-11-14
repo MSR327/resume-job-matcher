@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from jobmatch.llm import FakeLLM, LLMError, OpenAICompatLLM, estimate_cost
+from jobmatch.llm import FakeLLM, LLMError, OpenAICompatLLM, estimate_cost, groq
 
 
 def _client(handler):
@@ -58,7 +58,7 @@ def test_fake_llm_replays_and_records():
 
 
 def test_estimate_cost_known_and_unknown_model():
-    assert estimate_cost("llama-3.3-70b-versatile", 1_000_000, 0) > 0
+    assert estimate_cost("openai/gpt-oss-120b", 1_000_000, 0) > 0
     assert estimate_cost("unknown-model", 1000, 1000) == 0.0
 
 
@@ -77,3 +77,14 @@ def test_rate_limit_gives_up_after_retries():
                           rate_limit_retries=1, sleep=lambda s: None)
     with pytest.raises(LLMError, match="429"):
         llm.complete([{"role": "user", "content": "hi"}])
+
+
+def test_groq_sets_reasoning_effort_per_model():
+    seen = {}
+
+    def handler(req):
+        seen.update(json.loads(req.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "x"}}]})
+
+    groq("k", "qwen/qwen3.8-27b", client=_client(handler)).complete([{"role": "user", "content": "hi"}])
+    assert seen["reasoning_effort"] == "none" and seen["model"] == "qwen/qwen3.8-27b"

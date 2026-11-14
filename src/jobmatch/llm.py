@@ -15,14 +15,19 @@ from typing import Protocol
 import httpx
 
 GROQ_URL = "https://api.groq.com/openai/v1"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "openai/gpt-oss-120b"  # explanations + judge
+SYNTH_MODEL = "qwen/qwen3.8-27b"  # writes synthetic resumes: a different model family than the judge
+
+# Both are reasoning models; hidden "thinking" tokens cost latency and budget, and these tasks
+# (short JSON answers) don't need much of it. Checked against the Groq API on 2026-11-15.
+REASONING = {"openai/gpt-oss-120b": "low", "openai/gpt-oss-20b": "low", "qwen/qwen3.8-27b": "none"}
 
 # USD per 1M tokens (input, output), public list prices. Used for the "$ / request" estimate only;
 # re-check the provider's pricing page before quoting numbers. Unknown models count as $0
 # (e.g. a self-hosted vLLM model on a free Kaggle GPU).
 PRICES = {
-    "llama-3.3-70b-versatile": (0.59, 0.79),
-    "llama-3.1-8b-instant": (0.05, 0.08),
+    "openai/gpt-oss-120b": (0.15, 0.75),
+    "openai/gpt-oss-20b": (0.10, 0.50),
 }
 
 
@@ -62,17 +67,20 @@ class OpenAICompatLLM:
         client: httpx.Client | None = None,
         rate_limit_retries: int = 0,
         sleep: Callable[[float], None] = time.sleep,
+        extra_body: dict | None = None,
     ):
         """`rate_limit_retries`: extra tries after HTTP 429 (0 for the app: fail fast and fall back;
         a few for batch jobs, which can afford to wait)."""
         self.rate_limit_retries, self._sleep = rate_limit_retries, sleep
+        self.extra_body = extra_body or {}
         self.url = base_url.rstrip("/") + "/chat/completions"
         self.model = model
         self._headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self._client = client or httpx.Client(timeout=timeout)
 
     def complete(self, messages, *, temperature=0.0, max_tokens=700, json_mode=False) -> LLMResponse:
-        body = {"model": self.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+        body = {"model": self.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens,
+                **self.extra_body}
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         t0 = time.perf_counter()
@@ -108,6 +116,8 @@ class OpenAICompatLLM:
 
 
 def groq(api_key: str, model: str = GROQ_MODEL, **kw) -> OpenAICompatLLM:
+    if model in REASONING:
+        kw.setdefault("extra_body", {"reasoning_effort": REASONING[model]})
     return OpenAICompatLLM(GROQ_URL, model, api_key=api_key, **kw)
 
 
