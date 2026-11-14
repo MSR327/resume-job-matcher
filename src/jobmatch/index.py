@@ -68,17 +68,19 @@ class JobIndex:
         (p / "manifest.json").write_text(json.dumps(self.manifest, indent=2))
 
     @classmethod
-    def load(cls, path: str | Path) -> JobIndex:
+    def load(cls, path: str | Path, mmap: bool = False) -> JobIndex:
+        """`mmap=True` maps the big arrays from disk instead of reading them into RAM (small hosts)."""
         p = Path(path)
+        mode = "r" if mmap else None
         z = np.load(p / "skill_ids.npz")
         flat, off = z["flat"], z["offsets"]
         return cls(
             jobs=pd.read_parquet(p / "jobs.parquet"),
-            vectors=np.load(p / "vectors.npy"),
+            vectors=np.load(p / "vectors.npy", mmap_mode=mode),
             bm25=bm25s.BM25.load(str(p / "bm25")),
             skills=json.loads((p / "skills.json").read_text()),
             phrases=json.loads((p / "phrases.json").read_text()),
-            phrase_vecs=np.load(p / "phrase_vecs.npy"),
+            phrase_vecs=np.load(p / "phrase_vecs.npy", mmap_mode=mode),
             skill_ids=[flat[off[i] : off[i + 1]] for i in range(len(off) - 1)],
             manifest=json.loads((p / "manifest.json").read_text()),
         )

@@ -7,6 +7,7 @@ ONNX on CPU in the app, with PyTorch on Kaggle, and with tiny fakes in tests.
 from __future__ import annotations
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from dataclasses import dataclass
 
@@ -69,10 +70,12 @@ class Matcher:
                 miss = set(cov[d][1])
                 out.append(Match(d, self.index.jobs.iloc[d].to_dict(), float(score), cov[d][0],
                                  [n for i, n in enumerate(names) if i not in miss], [names[i] for i in sorted(miss)]))
-            if self.llm and explain_top:
-                with stage("explain"):
-                    for m in out:
-                        m.explanation = explain(self.llm, resume, m.job, m.matched, m.missing)
+            if self.llm and explain_top and out:
+                # One LLM call per job, in parallel: wall time ~ the slowest call, not the sum.
+                with stage("explain"), ThreadPoolExecutor(max_workers=len(out)) as workers:
+                    exps = workers.map(lambda m: explain(self.llm, resume, m.job, m.matched, m.missing), out)
+                    for m, e in zip(out, exps):
+                        m.explanation = e
             if rec:
                 ex = [m.explanation for m in out if m.explanation]
                 rec.add(n_resume_skills=len(skills), n_results=len(out),

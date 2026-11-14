@@ -76,3 +76,11 @@ def test_shared_phrase_stored_once():
     assert idx.phrases == ["AWS"] and idx.phrase_vecs.shape == (1, DIM)
     assert [list(i) for i in idx.skill_ids] == [[0], [0], [0]]
     assert idx.manifest["n_phrases"] == 1 and idx.manifest["n_spans_kept"] == 3
+
+
+def test_load_mmap_same_values(tmp_path):
+    idx = build_index(_jobs(), _embed, _skills, version="t")
+    idx.save(tmp_path / "v")
+    m = JobIndex.load(tmp_path / "v", mmap=True)
+    assert isinstance(m.phrase_vecs, np.memmap)
+    assert np.array_equal(m.job_skill_vecs(0), idx.job_skill_vecs(0))

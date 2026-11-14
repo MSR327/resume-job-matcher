@@ -7,6 +7,7 @@ canned answers for tests, so CI never touches the network.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -126,16 +127,22 @@ def vllm(model: str, base_url: str = "http://localhost:8000/v1", **kw) -> OpenAI
 
 
 class FakeLLM:
-    """Replays scripted replies in order. A reply that is an exception gets raised instead."""
+    """Replays scripted replies. A reply that is an exception gets raised instead.
 
-    def __init__(self, replies: list, model: str = "fake"):
-        self.replies = list(replies)
+    `replies` is a list (used in order) or a function messages -> reply, which keeps tests
+    deterministic when calls run in parallel threads. Thread-safe.
+    """
+
+    def __init__(self, replies, model: str = "fake"):
+        self.replies = replies if callable(replies) else list(replies)
         self.model = model
         self.calls: list[list[dict]] = []
+        self._lock = threading.Lock()
 
     def complete(self, messages, *, temperature=0.0, max_tokens=700, json_mode=False) -> LLMResponse:
-        self.calls.append(messages)
-        reply = self.replies.pop(0)
+        with self._lock:
+            self.calls.append(messages)
+            reply = self.replies(messages) if callable(self.replies) else self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
         return LLMResponse(text=reply, prompt_tokens=100, completion_tokens=50, model=self.model)

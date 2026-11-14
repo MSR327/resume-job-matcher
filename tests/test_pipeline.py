@@ -51,8 +51,11 @@ def test_match_explains_top_k_and_logs_numbers(tmp_path):
     reply = json.dumps({"fit_summary": "ok", "matched_skills": ["Kubernetes"], "missing_skills": ["AWS"],
                         "evidence": [{"claim": "k8s", "quote": "run Kubernetes and Terraform"}]})
     tel = Telemetry(tmp_path / "t.jsonl")
-    out = _matcher(FakeLLM([reply, LLMError("429"), LLMError("429")]), tel).match(
-        "I know Kubernetes and Terraform, some Python", k=2, mode="bm25")
+    def by_job(messages):  # devops job gets a good answer, the other job's LLM call fails
+        return reply if "devops engineer" in messages[-1]["content"] else LLMError("429")
+
+    out = _matcher(FakeLLM(by_job), tel).match("I know Kubernetes and Terraform, some Python", k=2, mode="bm25")
+    assert out[0].job["job_id"] == "c"
     assert out[0].explanation.ok and out[0].explanation.citations_kept == 1
     assert not out[1].explanation.ok  # fell back, still has skill overlap
     row = tel.read()[0]
