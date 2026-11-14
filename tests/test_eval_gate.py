@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from jobmatch.config import ALPHA
 from jobmatch.index import doc_text
 from jobmatch.metrics import mrr, recall_at_k
 from jobmatch.rerank import rerank
@@ -38,9 +37,10 @@ def _scores():
     for mode in ("bm25", "dense", "hybrid", "rerank"):
         ranked = []
         for qi, text in enumerate(q["texts"]):
-            cands = retr.search(text, k=50, depth=100, mode="hybrid" if mode == "rerank" else mode)
+            # "rerank" = the app's configuration: its base mode + skill re-rank, frozen with the fixture.
+            cands = retr.search(text, k=50, depth=100, mode=q["mode"] if mode == "rerank" else mode)
             if mode == "rerank":
-                cands = rerank(cands, {d: float(arr["coverage"][qi, d]) for d, _ in cands}, ALPHA)
+                cands = rerank(cands, {d: float(arr["coverage"][qi, d]) for d, _ in cands}, q["alpha"])
             ranked.append([ids[d] for d, _ in cands])
         out[mode] = {"R@10": recall_at_k(ranked, q["gold_job_ids"], 10), "MRR": mrr(ranked, q["gold_job_ids"])}
     return out

@@ -3,6 +3,9 @@
 INDEX_REPO = "srish327/tech-jobs-index"
 INDEX_VERSION = "v1"
 SKILL_MODEL = "srish327/deberta-v3-skillspan-crf"
+# Chosen on the dev split (scripts/eval_retrieval.py -> results/l1_retrieval.json): base retrieval mode for the
+# app, and the re-rank settings tuned for it.
+MODE = "hybrid"
 TAU = 0.75  # soft skill match: cosine >= TAU between skill-phrase embeddings
 ALPHA = 0.5  # final score = ALPHA * retrieval + (1 - ALPHA) * skill coverage
 

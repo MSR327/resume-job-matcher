@@ -15,7 +15,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from jobmatch.config import ALPHA, INDEX_REPO, INDEX_VERSION, SAMPLE_RESUME, SKILL_MODEL, TAU
+from jobmatch.config import ALPHA, INDEX_REPO, INDEX_VERSION, MODE, SAMPLE_RESUME, SKILL_MODEL, TAU
 from jobmatch.index import clean_skills
 from jobmatch.telemetry import Telemetry
 
@@ -77,7 +77,9 @@ st.caption(
 with st.sidebar:
     st.header("Settings")
     k = st.slider("Jobs to show", 3, 10, 5)
-    mode = st.radio("Retrieval", ["hybrid", "dense", "bm25"], help="hybrid = BM25 + embeddings fused with RRF")
+    modes = ["bm25", "hybrid", "dense"]
+    mode = st.radio("Retrieval", modes, index=modes.index(MODE),
+                    help="bm25 = keywords · dense = embeddings · hybrid = both, fused with RRF. Default chosen on the dev set.")
     skill_rerank = st.toggle("Skill-coverage re-rank", value=True)
     explain_on = st.toggle("LLM explanations", value=True)
     st.divider()

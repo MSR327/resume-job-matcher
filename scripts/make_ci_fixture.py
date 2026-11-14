@@ -18,7 +18,7 @@ from huggingface_hub import snapshot_download
 from sentence_transformers import SentenceTransformer
 from skillex.predict import SkillExtractor
 
-from jobmatch.config import TAU
+from jobmatch.config import ALPHA, MODE, TAU
 from jobmatch.embed import QUERY_PREFIX
 from jobmatch.index import JobIndex, clean_skills
 from jobmatch.rerank import skill_coverage
@@ -56,7 +56,7 @@ def main() -> None:
     np.savez_compressed(OUT / "arrays.npz", job_vecs=idx.vectors[rows], query_vecs=qvec.astype(np.float16),
                         coverage=cov)
     (OUT / "queries.json").write_text(json.dumps(
-        {"gold_job_ids": [q["job_id"] for q in queries], "tau": TAU, "index_version": "v1",
+        {"gold_job_ids": [q["job_id"] for q in queries], "tau": TAU, "alpha": ALPHA, "mode": MODE, "index_version": "v1",
          "texts": [q["resume"] for q in queries]}, indent=1))
     print({f.name: f"{f.stat().st_size / 1e6:.2f} MB" for f in OUT.iterdir()})
 
