@@ -81,9 +81,10 @@ def main() -> None:
                 t0 = time.perf_counter()
                 res[mode] = retr.search(it["resume"], k=50, depth=100, mode=mode)
                 t[f"{mode}_ms"] = (time.perf_counter() - t0) * 1e3
-            # Best resume-skill similarity for every skill of every hybrid candidate: any tau is then cheap.
+            # Best resume-skill similarity for every skill of every candidate: any tau is then cheap.
+            cands = {d for m in ("bm25", "hybrid") for d, _ in res[m]}
             best = {d: (idx.job_skill_vecs(d).astype(np.float32) @ rvec.T).max(1) if len(rvec) and
-                    len(idx.skill_ids[d]) else np.zeros(len(idx.skill_ids[d])) for d, _ in res["hybrid"]}
+                    len(idx.skill_ids[d]) else np.zeros(len(idx.skill_ids[d])) for d in cands}
             gold = canon[row_of[it["job_id"]]]
             out.append({"res": res, "best": best, "gold": gold, "t": t, "n_skills": len(skills),
                         "overlap4": ngram_overlap(it["resume"], idx.jobs["description"][row_of[it["job_id"]]])})
@@ -92,7 +93,7 @@ def main() -> None:
     def ranked_ids(q, mode, tau=None, alpha=None):
         cands = q["res"][mode]
         if tau is not None:
-            cov = {d: float((b >= tau).mean()) if len(b) else 0.0 for d, b in q["best"].items()}
+            cov = {d: float((q["best"][d] >= tau).mean()) if len(q["best"][d]) else 0.0 for d, _ in cands}
             cands = rerank(cands, cov, alpha)
         return [canon[d] for d, _ in cands]
 
@@ -101,19 +102,23 @@ def main() -> None:
 
     print("running dev ...", flush=True)
     qd = run(dev)
-    grid = {(t, a): score(qd, mode="hybrid", tau=t, alpha=a) for t in TAUS for a in ALPHAS}
-    (tau, alpha), best_dev = max(grid.items(), key=lambda kv: (kv[1]["MRR"], kv[1]["R@10"]))
-    print(f"dev: hybrid MRR {score(qd, mode='hybrid')['MRR']:.3f} | best re-rank tau={tau} alpha={alpha} "
-          f"MRR {best_dev['MRR']:.3f}")
+    tuned, grids = {}, {}
+    for base in ("bm25", "hybrid"):
+        grid = {(t, a): score(qd, mode=base, tau=t, alpha=a) for t in TAUS for a in ALPHAS}
+        (t, a), m = max(grid.items(), key=lambda kv: (kv[1]["MRR"], kv[1]["R@10"]))
+        tuned[base], grids[base] = (t, a), grid
+        print(f"dev: {base} MRR {score(qd, mode=base)['MRR']:.3f} | + re-rank tau={t} alpha={a} MRR {m['MRR']:.3f}")
+    dev_table = {m: score(qd, mode=m) for m in ("bm25", "dense", "hybrid")}
+    for base, (t, a) in tuned.items():
+        dev_table[f"{base}+rerank"] = score(qd, mode=base, tau=t, alpha=a)
+    choice = max(dev_table, key=lambda c: (dev_table[c]["MRR"], dev_table[c]["R@10"]))
+    print(f"dev choice for the app: {choice}")
 
     print("running test ...", flush=True)
     qt = run(test)
-    table = {
-        "bm25": score(qt, mode="bm25"),
-        "dense": score(qt, mode="dense"),
-        "hybrid": score(qt, mode="hybrid"),
-        f"hybrid + skill re-rank (tau={tau}, alpha={alpha})": score(qt, mode="hybrid", tau=tau, alpha=alpha),
-    }
+    table = {m: score(qt, mode=m) for m in ("bm25", "dense", "hybrid")}
+    for base, (t, a) in tuned.items():
+        table[f"{base}+rerank"] = score(qt, mode=base, tau=t, alpha=a)
 
     def per_query(kind, k=None, **kw):
         vals = []
@@ -123,19 +128,21 @@ def main() -> None:
                         else float(q["gold"] in r[:k]))
         return np.array(vals)
 
-    ci = {
-        "MRR": paired_bootstrap(per_query("rr", mode="hybrid"), per_query("rr", mode="hybrid", tau=tau, alpha=alpha)),
-        "R@10": paired_bootstrap(per_query("hit", 10, mode="hybrid"),
-                                 per_query("hit", 10, mode="hybrid", tau=tau, alpha=alpha)),
-    }
+    ci = {}
+    for base, (t, a) in tuned.items():
+        for metric, kind, k in (("MRR", "rr", None), ("R@10", "hit", 10)):
+            ci[f"{base}+rerank - {base}, {metric}"] = paired_bootstrap(
+                per_query(kind, k, mode=base), per_query(kind, k, mode=base, tau=t, alpha=a))
+    ci["bm25 - hybrid, MRR"] = paired_bootstrap(per_query("rr", mode="hybrid"), per_query("rr", mode="bm25"))
     lat = {k: float(np.mean([q["t"][k] for q in qt])) for k in qt[0]["t"]}
     result = {
-        "index_version": args.version, "n_dev": len(dev), "n_test": len(test), "tuned": {"tau": tau, "alpha": alpha},
+        "index_version": args.version, "n_dev": len(dev), "n_test": len(test),
+        "tuned": {b: {"tau": t, "alpha": a} for b, (t, a) in tuned.items()}, "dev": dev_table, "dev_choice": choice,
         "test": table, "rerank_minus_hybrid_ci95": ci, "latency_ms_mean": lat,
         "overlap4_mean": float(np.mean([q["overlap4"] for q in qd + qt])),
         "resume_skills_mean": float(np.mean([q["n_skills"] for q in qd + qt])),
-        "dev_grid_top5": sorted(([f"tau={t},alpha={a}", m["MRR"]] for (t, a), m in grid.items()),
-                                key=lambda x: -x[1])[:5],
+        "dev_grid_top5": {b: sorted(([f"tau={t},alpha={a}", m["MRR"]] for (t, a), m in g.items()),
+                                    key=lambda x: -x[1])[:5] for b, g in grids.items()},
     }
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(result, indent=2))
@@ -144,7 +151,7 @@ def main() -> None:
     for name, m in table.items():
         print(f"| {name} | {m['R@1']:.3f} | {m['R@5']:.3f} | {m['R@10']:.3f} | {m['MRR']:.3f} |")
     for k, (d, lo, hi) in ci.items():
-        print(f"re-rank - hybrid, {k}: {d:+.3f}  (95% CI {lo:+.3f} .. {hi:+.3f})")
+        print(f"{k}: {d:+.3f}  (95% CI {lo:+.3f} .. {hi:+.3f})")
     print("latency ms:", {k: round(v, 1) for k, v in lat.items()}, "| 4-gram overlap:",
           round(result["overlap4_mean"], 3))
 

@@ -19,7 +19,6 @@ from huggingface_hub import snapshot_download
 from sentence_transformers import SentenceTransformer
 from skillex.predict import SkillExtractor
 
-from jobmatch.config import ALPHA, TAU
 from jobmatch.embed import QUERY_PREFIX
 from jobmatch.index import JobIndex, clean_skills
 from jobmatch.judge import judge
@@ -29,7 +28,7 @@ from jobmatch.retrieve import HybridRetriever
 from jobmatch.synth import split_dev_test
 
 CACHE = Path("data/eval/judgments.jsonl")
-CONFIGS = ("bm25", "dense", "hybrid", "hybrid+rerank")
+CONFIGS = ("bm25", "dense", "hybrid", "bm25+rerank", "hybrid+rerank")
 
 
 def main() -> None:
@@ -38,6 +37,7 @@ def main() -> None:
     ap.add_argument("--out", default="results/l2_judge.json")
     args = ap.parse_args()
 
+    tuned = json.loads(Path("results/l1_retrieval.json").read_text())["tuned"]  # tau/alpha per base, from dev
     root = snapshot_download("srish327/tech-jobs-index", repo_type="dataset", allow_patterns=["v1/*"])
     idx = JobIndex.load(f"{root}/v1")
     items = [json.loads(x) for x in Path("data/eval/synth.jsonl").read_text().splitlines()]
@@ -52,11 +52,13 @@ def main() -> None:
     for q in queries:
         skills = sorted({s["text"] for s in clean_skills(ext.extract(q["resume"])["spans"])})
         rvec = emb.encode(skills, normalize_embeddings=True) if skills else np.zeros((0, 384))
-        t = {m: [d for d, _ in retr.search(q["resume"], k=10, mode=m)] for m in ("bm25", "dense")}
-        hy = retr.search(q["resume"], k=50, mode="hybrid")
-        t["hybrid"] = [d for d, _ in hy[:10]]
-        cov = {d: skill_coverage(rvec, idx.job_skill_vecs(d), TAU)[0] for d, _ in hy}
-        t["hybrid+rerank"] = [d for d, _ in rerank(hy, cov, ALPHA)[:10]]
+        t = {"dense": [d for d, _ in retr.search(q["resume"], k=10, mode="dense")]}
+        for base in ("bm25", "hybrid"):
+            cands = retr.search(q["resume"], k=50, mode=base)
+            t[base] = [d for d, _ in cands[:10]]
+            tau, alpha = tuned[base]["tau"], tuned[base]["alpha"]
+            cov = {d: skill_coverage(rvec, idx.job_skill_vecs(d), tau)[0] for d, _ in cands}
+            t[f"{base}+rerank"] = [d for d, _ in rerank(cands, cov, alpha)[:10]]
         tops[q["job_id"]] = t
 
     cache = {}
