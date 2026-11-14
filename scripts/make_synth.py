@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import random
 import time
 from pathlib import Path
@@ -19,21 +18,17 @@ from pathlib import Path
 import pandas as pd
 from huggingface_hub import hf_hub_download
 
-from jobmatch.llm import SYNTH_MODEL, groq
+from jobmatch.llm import SYNTH_MODEL, groq, load_api_key
 from jobmatch.synth import make_resume
 
 OUT = Path("data/eval/synth.jsonl")
 
 
 def api_key() -> str:
-    if os.environ.get("GROQ_API_KEY"):
-        return os.environ["GROQ_API_KEY"]
-    env = Path(".env")
-    for line in env.read_text().splitlines() if env.exists() else []:
-        k, _, v = line.partition("=")
-        if k.strip() == "GROQ_API_KEY" and v.strip():
-            return v.strip().strip('"')
-    raise SystemExit("GROQ_API_KEY not set (env var or .env)")
+    key = load_api_key()
+    if not key:
+        raise SystemExit("GROQ_API_KEY not set (env var or .env)")
+    return key
 
 
 def main() -> None:
