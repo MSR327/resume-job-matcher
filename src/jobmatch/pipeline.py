@@ -41,7 +41,7 @@ class Matcher:
         extract_skills: Callable[[str], list[str]],
         llm: LLM | None = None,
         telemetry: Telemetry | None = None,
-        alpha: float = 0.5,
+        alpha: float | dict[str, float] = 0.5,
         tau: float = 0.75,
     ):
         self.index, self.embed_phrases, self.extract_skills = index, embed_phrases, extract_skills
@@ -65,7 +65,8 @@ class Matcher:
                 cands = self.retriever.search(resume, k=pool, depth=depth, mode=mode)
             with stage("rerank"):
                 cov = {d: skill_coverage(rvec, self.index.job_skill_vecs(d), self.tau) for d, _ in cands}
-                ranked = rerank(cands, {d: c for d, (c, _) in cov.items()}, self.alpha) if skill_rerank else cands
+                alpha = self.alpha.get(mode, 0.5) if isinstance(self.alpha, dict) else self.alpha  # tuned per mode
+                ranked = rerank(cands, {d: c for d, (c, _) in cov.items()}, alpha) if skill_rerank else cands
             out = []
             for d, score in ranked[:k]:
                 names = [s["text"] for s in self.index.skills[d]]

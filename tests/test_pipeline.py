@@ -74,3 +74,13 @@ def test_explain_only_first_n():
     fake = FakeLLM(lambda messages: reply)
     out = _matcher(fake).match("I know Kubernetes and Terraform, some Python", k=2, mode="bm25", explain_n=1)
     assert out[0].explanation.ok and out[1].explanation is None and len(fake.calls) == 1
+
+
+def test_alpha_can_be_set_per_mode():
+    m = _matcher()
+    m.alpha = {"bm25": 1.0, "dense": 0.0}  # bm25: retrieval only; dense: skill coverage only
+    bm = m.match("I know Kubernetes and Terraform, some Python", k=3, mode="bm25")
+    plain = m.match("I know Kubernetes and Terraform, some Python", k=3, mode="bm25", skill_rerank=False)
+    assert [x.job_idx for x in bm] == [x.job_idx for x in plain] and abs(bm[0].score - 1.0) < 1e-6
+    dn = m.match("I know Kubernetes and Terraform, some Python", k=3, mode="dense")
+    assert all(abs(x.score - x.coverage) < 1e-6 for x in dn)
