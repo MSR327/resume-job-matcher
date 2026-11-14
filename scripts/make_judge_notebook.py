@@ -1,8 +1,22 @@
-import json, sys
-commit = sys.argv[1]
-md = lambda s: {"cell_type": "markdown", "metadata": {}, "source": s.splitlines(keepends=True)}
-code = lambda s: {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": s.splitlines(keepends=True)}
-cells = [
+"""Generate notebooks/02_judge.ipynb pinned to a commit of this repo (the commit holding data/eval/l2_pairs.json).
+
+    python scripts/make_judge_notebook.py <commit>
+"""
+
+import json
+import sys
+
+
+def md(s: str) -> dict:
+    return {"cell_type": "markdown", "metadata": {}, "source": s.splitlines(keepends=True)}
+
+
+def code(s: str) -> dict:
+    return {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": s.splitlines(keepends=True)}
+
+
+def build(commit: str) -> dict:
+    cells = [
 md("""# L2 judge: grade resume-job pairs with an open LLM
 
 IBM Granite-3.3-8B-Instruct (Apache-2.0) grades each (synthetic resume, job) pair 0-3 with the same rubric and prompt
@@ -90,7 +104,11 @@ code("""api.upload_file(path_or_fileobj="out/judgments.jsonl", path_in_repo="eva
                 repo_id=REPO, repo_type="dataset", commit_message=f"L2 judgments ({len(rows)} pairs, eval commit {COMMIT})")
 print("uploaded", f"https://huggingface.co/datasets/{REPO}/blob/main/eval/judgments_granite-3.3-8b.jsonl")"""),
 ]
-nb = {"cells": cells, "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
-      "language_info": {"name": "python"}}, "nbformat": 4, "nbformat_minor": 5}
-json.dump(nb, open("notebooks/02_judge.ipynb", "w"), indent=1)
-print("written for commit", commit)
+    return {"cells": cells, "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+            "language_info": {"name": "python"}}, "nbformat": 4, "nbformat_minor": 5}
+
+
+if __name__ == "__main__":
+    with open("notebooks/02_judge.ipynb", "w") as f:
+        json.dump(build(sys.argv[1]), f, indent=1)
+    print("written for commit", sys.argv[1])
