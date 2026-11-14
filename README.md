@@ -46,10 +46,15 @@ flowchart LR
 the top 10 **77%** of the time (MRR 0.57). Re-ranking by skill coverage adds **+5.1 points Recall@10** over BM25 alone
 (95% CI +0.7 to +10.2). Explanations quote the posting verbatim **95%** of the time.
 
-**Finding: dense retrieval hurt.** bge-small sees only the first 512 tokens of a posting, which are mostly company boilerplate,
-and fusing it with BM25 lowered MRR by 13 points versus BM25 alone. Chunked max-sim embeddings helped dense on its own
-(R@10 0.50 → 0.57 on a 30-resume preview of dev) but not the fusion, so the app ships BM25 + re-rank (chosen on dev, not test). Caveat: synthetic
-resumes are written from one posting, which favors exact tool names; L2 checks whether that holds for "any good match".
+**Finding: the two evaluations disagree about dense retrieval.** L1 asks "does *the* source job
+come back?", and there BM25 beats the BM25 + dense hybrid by 13 MRR points: synthetic resumes keep the posting's exact
+tool names, and bge-small sees only the first 512 tokens of a posting, mostly company boilerplate. L2 asks "are the
+top 10 *good* matches?" (graded by an LLM judge), and there the hybrid wins by **+4.3 nDCG@10** (95% CI +0.8 to +8.1):
+dense alone scores about the same as BM25 (0.66 vs 0.65), but the two find *different* good jobs, so fusing them
+helps. Skill re-ranking points the same way under L2 (+2.7 nDCG over BM25, CI −0.4 to +5.5, not significant at n = 60). The app ships BM25 + re-rank, the configuration chosen on dev before L2
+existed; switching on the strength of L2 would mean choosing on test data. Hybrid + re-rank (best under L2) is one
+click away in the sidebar, and a dev-split L2 run is the next step to decide properly. Caveat: an LLM judge may itself favor
+semantically similar text; L3 (human labels) checks how far to trust it.
 
 **L1: synthetic resumes** (test n = 137; tuned on dev n = 100; mean 4-gram overlap with the source posting 0.7%)
 
@@ -70,6 +75,25 @@ Paired bootstrap (95% CI, test):
 - bm25 - hybrid, MRR: **+0.131** (+0.067 to +0.194)
 
 Tuned on dev: bm25: τ=0.85, α=0.2, hybrid: τ=0.85, α=0.3. App configuration (best dev MRR): `bm25+rerank`.
+
+**L2: LLM judge** (ibm-granite/granite-3.3-8b-instruct, 60 test resumes, 1507 judged pairs)
+
+| configuration | nDCG@10 | P@10 (grade ≥ 2) |
+|---|---|---|
+| bm25 | 0.651 | 0.697 |
+| dense | 0.661 | 0.722 |
+| hybrid | 0.694 | 0.743 |
+| bm25+rerank | 0.677 | 0.722 |
+| hybrid+rerank | 0.705 | 0.743 |
+
+Paired bootstrap (95% CI):
+
+- bm25+rerank - bm25, nDCG@10: **+0.027** (-0.004 to +0.055)
+- hybrid+rerank - hybrid, nDCG@10: **+0.011** (-0.012 to +0.032)
+- bm25 - hybrid, nDCG@10: **-0.043** (-0.081 to -0.008)
+- hybrid+rerank - bm25+rerank, nDCG@10: **+0.028** (-0.005 to +0.062)
+
+Sanity check: the judge gives each resume's source job a mean grade of 2.36 / 3 (n = 53) vs. 1.90 for other retrieved jobs. Grades 0: 199, 1: 260, 2: 510, 3: 531; 7 unparseable outputs (truncated) count as 0.
 
 **Explanations and serving** (10 test resumes × top 5, app pipeline, laptop CPU)
 

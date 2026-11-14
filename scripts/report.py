@@ -37,9 +37,13 @@ def main() -> None:
                 "| configuration | nDCG@10 | P@10 (grade ≥ 2) |", "|---|---|---|"]
         for name, m in l2["configs"].items():
             out.append(f"| {name} | {m['nDCG@10']:.3f} | {m['P@10(grade>=2)']:.3f} |")
+        out += ["", "Paired bootstrap (95% CI):", ""]
+        for k, (d, lo, hi) in l2["ci95"].items():
+            out.append(f"- {k}: **{d:+.3f}** ({lo:+.3f} to {hi:+.3f})")
+        dist = ", ".join(f"{g}: {n}" for g, n in l2["grade_distribution"].items())
         out += ["", (f"Sanity check: the judge gives each resume's source job a mean grade of "
-                f"{l2['source_job_grade_mean']:.2f} / 3 (n = {l2['n_source_judged']}). "
-                f"Grade distribution: {l2['grade_distribution']}."), ""]
+                f"{l2['source_job_grade_mean']:.2f} / 3 (n = {l2['n_source_judged']}) vs. {l2['other_job_grade_mean']:.2f} for other retrieved jobs. "
+                f"Grades {dist}; {l2['failed_judgments']} unparseable outputs (truncated) count as 0."), ""]
     l3 = load("l3_agreement.json")
     if l3:
         out += [f"**L3: judge vs. human** (n = {l3['n']} pairs, labeled blind)", "",
