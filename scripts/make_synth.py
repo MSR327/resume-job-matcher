@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import random
 import time
 from pathlib import Path
@@ -22,6 +23,7 @@ from jobmatch.llm import SYNTH_MODEL, groq, load_api_key
 from jobmatch.synth import make_resume
 
 OUT = Path("data/eval/synth.jsonl")
+log = logging.getLogger("make_synth")
 
 
 def api_key() -> str:
@@ -38,6 +40,9 @@ def main() -> None:
     ap.add_argument("--version", default="v1")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
+    for noisy in ("httpx", "httpcore", "huggingface_hub"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     jobs = pd.read_parquet(hf_hub_download("srish327/tech-jobs-index", f"{args.version}/jobs.parquet",
                                            repo_type="dataset"))
@@ -58,6 +63,7 @@ def main() -> None:
                 continue
             row = make_resume(llm, job, rng)
             if row is None:
+                log.info("no resume for job %s (copying or LLM errors)", job["job_id"])
                 rejected += 1
                 streak += 1
                 # Circuit breaker: a run of failures means a broken setup (bad model name, key,

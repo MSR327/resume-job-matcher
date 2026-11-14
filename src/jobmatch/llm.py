@@ -7,6 +7,7 @@ canned answers for tests, so CI never touches the network.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -14,6 +15,8 @@ from dataclasses import dataclass
 from typing import Protocol
 
 import httpx
+
+log = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1"
 GROQ_MODEL = "openai/gpt-oss-120b"  # explanations + judge
@@ -114,6 +117,7 @@ class OpenAICompatLLM:
                 wait = float(r.headers.get("retry-after", 2 ** (attempt + 2)))
             except ValueError:
                 wait = 2.0 ** (attempt + 2)
+            log.info("HTTP 429 from %s, waiting %.0fs (try %d)", self.model, min(wait, self.max_wait), attempt + 1)
             self._sleep(min(wait, self.max_wait))
         if r.status_code != 200:
             # Status only: response bodies can echo request details, and we never log keys or resumes.
