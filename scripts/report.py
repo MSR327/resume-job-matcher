@@ -27,7 +27,7 @@ def main() -> None:
             tag = " ← app" if name == l1["dev_choice"] else ""
             out.append(f"| {name}{tag} | {m['R@1']:.3f} | {m['R@5']:.3f} | {m['R@10']:.3f} | {m['MRR']:.3f} |")
         out += ["", "Paired bootstrap (95% CI, test):", ""]
-        for k, (d, lo, hi) in l1["rerank_minus_hybrid_ci95"].items():
+        for k, (d, lo, hi) in l1["ci95"].items():
             out.append(f"- {k}: **{d:+.3f}** ({lo:+.3f} to {hi:+.3f})")
         tuned = ", ".join(f"{b}: τ={v['tau']}, α={v['alpha']}" for b, v in l1["tuned"].items())
         out += ["", f"Tuned on dev: {tuned}. App configuration (best dev MRR): `{l1['dev_choice']}`.", ""]

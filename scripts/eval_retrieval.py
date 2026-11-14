@@ -138,7 +138,7 @@ def main() -> None:
     result = {
         "index_version": args.version, "n_dev": len(dev), "n_test": len(test),
         "tuned": {b: {"tau": t, "alpha": a} for b, (t, a) in tuned.items()}, "dev": dev_table, "dev_choice": choice,
-        "test": table, "rerank_minus_hybrid_ci95": ci, "latency_ms_mean": lat,
+        "test": table, "ci95": ci, "latency_ms_mean": lat,
         "overlap4_mean": float(np.mean([q["overlap4"] for q in qd + qt])),
         "resume_skills_mean": float(np.mean([q["n_skills"] for q in qd + qt])),
         "dev_grid_top5": {b: sorted(([f"tau={t},alpha={a}", m["MRR"]] for (t, a), m in g.items()),
