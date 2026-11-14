@@ -7,7 +7,7 @@ name = "jobmatch"
 version = "0.1.0"
 description = "Resume -> tech job matcher: hybrid retrieval, skill-aware re-ranking, grounded LLM explanations"
 requires-python = ">=3.10"
-dependencies = ["numpy", "pandas", "pyarrow", "bm25s>=0.2"]
+dependencies = ["numpy", "pandas", "pyarrow", "bm25s>=0.2", "httpx"]
 
 [project.optional-dependencies]
 index = ["sentence-transformers>=3", "skillex @ git+https://github.com/MSR327/skillspan-ner.git", "huggingface_hub"]
