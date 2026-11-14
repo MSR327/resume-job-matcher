@@ -8,6 +8,7 @@ canned answers for tests, so CI never touches the network.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -59,7 +60,12 @@ class OpenAICompatLLM:
         api_key: str | None = None,
         timeout: float = 30.0,
         client: httpx.Client | None = None,
+        rate_limit_retries: int = 0,
+        sleep: Callable[[float], None] = time.sleep,
     ):
+        """`rate_limit_retries`: extra tries after HTTP 429 (0 for the app: fail fast and fall back;
+        a few for batch jobs, which can afford to wait)."""
+        self.rate_limit_retries, self._sleep = rate_limit_retries, sleep
         self.url = base_url.rstrip("/") + "/chat/completions"
         self.model = model
         self._headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
@@ -70,10 +76,19 @@ class OpenAICompatLLM:
         if json_mode:
             body["response_format"] = {"type": "json_object"}
         t0 = time.perf_counter()
-        try:
-            r = self._client.post(self.url, json=body, headers=self._headers)
-        except httpx.HTTPError as e:  # timeouts, connection errors
-            raise LLMError(f"{type(e).__name__} calling {self.model}") from None
+        for attempt in range(self.rate_limit_retries + 1):
+            try:
+                r = self._client.post(self.url, json=body, headers=self._headers)
+            except httpx.HTTPError as e:  # timeouts, connection errors
+                raise LLMError(f"{type(e).__name__} calling {self.model}") from None
+            if r.status_code != 429 or attempt == self.rate_limit_retries:
+                break
+            # Free tiers rate-limit per minute: wait as told (capped), then try again.
+            try:
+                wait = float(r.headers.get("retry-after", 2 ** (attempt + 2)))
+            except ValueError:
+                wait = 2.0 ** (attempt + 2)
+            self._sleep(min(wait, 60.0))
         if r.status_code != 200:
             # Status only: response bodies can echo request details, and we never log keys or resumes.
             raise LLMError(f"HTTP {r.status_code} from {self.model}")

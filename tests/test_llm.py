@@ -60,3 +60,20 @@ def test_fake_llm_replays_and_records():
 def test_estimate_cost_known_and_unknown_model():
     assert estimate_cost("llama-3.3-70b-versatile", 1_000_000, 0) > 0
     assert estimate_cost("unknown-model", 1000, 1000) == 0.0
+
+
+def test_rate_limit_waits_then_succeeds():
+    replies = [httpx.Response(429, headers={"retry-after": "3"}), httpx.Response(429),
+               httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})]
+    waits = []
+    llm = OpenAICompatLLM("https://x.test/v1", "m", client=_client(lambda r: replies.pop(0)),
+                          rate_limit_retries=2, sleep=waits.append)
+    assert llm.complete([{"role": "user", "content": "hi"}]).text == "ok"
+    assert waits == [3.0, 8.0]
+
+
+def test_rate_limit_gives_up_after_retries():
+    llm = OpenAICompatLLM("https://x.test/v1", "m", client=_client(lambda r: httpx.Response(429)),
+                          rate_limit_retries=1, sleep=lambda s: None)
+    with pytest.raises(LLMError, match="429"):
+        llm.complete([{"role": "user", "content": "hi"}])
