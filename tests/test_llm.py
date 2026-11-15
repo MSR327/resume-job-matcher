@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from jobmatch.llm import FakeLLM, LLMError, OpenAICompatLLM, estimate_cost, groq
+from jobmatch.llm import FakeLLM, FallbackLLM, LLMError, OpenAICompatLLM, estimate_cost, groq, llama_server
 
 
 def _client(handler):
@@ -98,3 +98,18 @@ def test_rate_limit_wait_is_capped():
                           rate_limit_retries=1, sleep=waits.append, max_wait=3.0)
     llm.complete([{"role": "user", "content": "hi"}])
     assert waits == [3.0]
+
+
+def test_fallback_uses_primary_then_fallback_on_error():
+    primary, backup = FakeLLM(["from student", LLMError("down")], model="student"), FakeLLM(["from groq"], model="g")
+    llm = FallbackLLM(primary, backup)
+    assert llm.complete([{"role": "user", "content": "x"}]).model == "student"
+    r = llm.complete([{"role": "user", "content": "x"}])
+    assert (r.text, r.model) == ("from groq", "g")
+    assert len(primary.calls) == 2 and len(backup.calls) == 1
+
+
+def test_llama_server_disables_thinking_in_template():
+    llm = llama_server("https://example.hf.space/")
+    assert llm.url == "https://example.hf.space/v1/chat/completions"
+    assert llm.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}

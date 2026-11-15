@@ -50,7 +50,7 @@ def load_matcher():
 
     from jobmatch.embed import OnnxEmbedder
     from jobmatch.index import JobIndex
-    from jobmatch.llm import groq
+    from jobmatch.llm import FallbackLLM, groq, llama_server
     from jobmatch.pipeline import Matcher
 
     root = snapshot_download(INDEX_REPO, repo_type="dataset", allow_patterns=[f"{INDEX_VERSION}/*"])
@@ -60,6 +60,10 @@ def load_matcher():
     key = _secret("GROQ_API_KEY")
     # One quick retry on a rate limit (free tier is per minute); otherwise fail fast and show the fallback.
     llm = groq(key, timeout=25, rate_limit_retries=1, max_wait=3.0) if key else None
+    # Optional: the distilled student (explain-distill) on a CPU Space answers first; Groq covers cold starts/errors.
+    if student_url := _secret("STUDENT_URL"):
+        student = llama_server(student_url, api_key=_secret("STUDENT_API_KEY"), timeout=60)
+        llm = FallbackLLM(student, llm) if llm else student
     return Matcher(
         index,
         embed_query=emb.query,

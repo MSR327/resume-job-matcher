@@ -1,7 +1,8 @@
 """LLM clients behind one small protocol.
 
-Groq (demo) and vLLM (bulk eval on Kaggle) both serve the OpenAI chat-completions API, so one
-client covers both and the eval measures exactly the code path the demo runs. `FakeLLM` replays
+Groq (demo), vLLM (bulk eval on Kaggle) and llama.cpp's llama-server (the distilled student from
+explain-distill) all serve the OpenAI chat-completions API, so one client covers them and the eval measures
+exactly the code path the demo runs. `FallbackLLM` chains two of them (student first, Groq if it fails). `FakeLLM` replays
 canned answers for tests, so CI never touches the network.
 """
 
@@ -145,6 +146,35 @@ def groq(api_key: str, model: str = GROQ_MODEL, **kw) -> OpenAICompatLLM:
 
 def vllm(model: str, base_url: str = "http://localhost:8000/v1", **kw) -> OpenAICompatLLM:
     return OpenAICompatLLM(base_url, model, **kw)
+
+
+def llama_server(base_url: str, model: str = "student", api_key: str | None = None, **kw) -> OpenAICompatLLM:
+    """A distilled student served by llama.cpp's `llama-server` (OpenAI-compatible, project 3 / explain-distill).
+
+    Qwen3 students were trained on prompts with thinking turned off, so the server must render the chat template
+    the same way: `enable_thinking: false` goes through as a template argument.
+    """
+    kw.setdefault("extra_body", {"chat_template_kwargs": {"enable_thinking": False}})
+    return OpenAICompatLLM(base_url.rstrip("/") + "/v1", model, api_key=api_key, **kw)
+
+
+class FallbackLLM:
+    """Try `primary` (e.g. the self-hosted student), and on any LLMError use `fallback` (e.g. Groq).
+
+    The response's `model` says which one answered, so telemetry and cost reflect the path actually taken.
+    """
+
+    def __init__(self, primary: LLM, fallback: LLM):
+        self.primary, self.fallback = primary, fallback
+        self.model = getattr(primary, "model", "primary")
+
+    def complete(self, messages, *, temperature=0.0, max_tokens=700, json_mode=False) -> LLMResponse:
+        try:
+            return self.primary.complete(messages, temperature=temperature, max_tokens=max_tokens, json_mode=json_mode)
+        except LLMError as e:
+            log.info("primary LLM failed (%s); using fallback", e)
+            return self.fallback.complete(messages, temperature=temperature, max_tokens=max_tokens,
+                                          json_mode=json_mode)
 
 
 class FakeLLM:
