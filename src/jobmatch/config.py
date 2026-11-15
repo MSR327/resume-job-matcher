@@ -3,9 +3,10 @@
 INDEX_REPO = "srish327/tech-jobs-index"
 INDEX_VERSION = "v1"
 SKILL_MODEL = "srish327/deberta-v3-skillspan-crf"
-# Chosen on the dev split (scripts/eval_retrieval.py -> results/l1_retrieval.json): base retrieval mode for the
-# app, and the re-rank settings tuned for it.
-MODE = "bm25"
+# Chosen on the dev split, never on test: hybrid + skill re-rank had the best dev L2 nDCG@10 (LLM judge, "are the top 10
+# good matches?"); plain hybrid tied it (-0.002), and the tie went to re-rank, which won L1 dev MRR by +0.10.
+# bm25 + re-rank wins L1 (recover the one source posting) but loses L2. See README "Results".
+MODE = "hybrid"
 TAU = 0.85  # soft skill match: cosine >= TAU between skill-phrase embeddings
 # final score = alpha * retrieval + (1 - alpha) * skill coverage, tuned on dev per base mode (dense: not tuned, uses hybrid's)
 ALPHA = {"bm25": 0.2, "hybrid": 0.3, "dense": 0.3}

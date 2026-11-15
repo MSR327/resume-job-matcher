@@ -52,8 +52,11 @@
   "3900963013"
  ],
  "tau": 0.85,
- "alpha": 0.2,
- "mode": "bm25",
+ "alpha": {
+  "bm25": 0.2,
+  "hybrid": 0.3
+ },
+ "mode": "hybrid",
  "index_version": "v1",
  "texts": [
   "Junior Cloud Developer with 1.5 years of experience in building scalable applications on AWS. At Company A, I developed Python-based microservices for data processing, utilizing Lambda, S3, and DynamoDB to handle daily user data. I automated deployment workflows using Terraform and Jenkins, reducing manual setup time by 40%. Collaborated with the engineering team to integrate RESTful APIs using Flask and Spring Boot, ensuring consistent performance across environments. Proficient in SQL and relational database management, having designed schemas for a customer loyalty platform that improved query efficiency by 25%. Familiar with CI/CD practices, Docker, and Kubernetes for container orchestration. Participated in agile sprints using Jira, maintaining high velocity and code quality through regular code reviews. Recently completed a University B certificate in Cloud Architecture, focusing on VPC design and IAM security policies. While I lack direct experience with complex Big Data platforms like Spark or Airflow, I possess strong foundational knowledge and have built proof-of-concept ETL pipelines in a university project. My background in software development and cloud infrastructure provides a solid base for contributing to data retention initiatives, with a keen interest in expanding my expertise in enterprise-scale data solutions and observability patterns.",

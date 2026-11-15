@@ -5,8 +5,8 @@
 | bm25 | 0.438 | 0.693 | 0.723 | 0.546 |
 | dense | 0.204 | 0.328 | 0.431 | 0.272 |
 | hybrid | 0.299 | 0.540 | 0.657 | 0.416 |
-| bm25+rerank ← app | 0.453 | 0.730 | 0.774 | 0.574 |
-| hybrid+rerank | 0.387 | 0.606 | 0.715 | 0.489 |
+| bm25+rerank | 0.453 | 0.730 | 0.774 | 0.574 |
+| hybrid+rerank ← app | 0.387 | 0.606 | 0.715 | 0.489 |
 
 Paired bootstrap (95% CI, test):
 
@@ -16,7 +16,7 @@ Paired bootstrap (95% CI, test):
 - hybrid+rerank - hybrid, R@10: **+0.058** (+0.007 to +0.117)
 - bm25 - hybrid, MRR: **+0.131** (+0.067 to +0.194)
 
-Tuned on dev: bm25: τ=0.85, α=0.2, hybrid: τ=0.85, α=0.3. App configuration (best dev MRR): `bm25+rerank`.
+Tuned on dev: bm25: τ=0.85, α=0.2, hybrid: τ=0.85, α=0.3. Best dev MRR: `bm25+rerank`.
 
 **L2: LLM judge** (ibm-granite/granite-3.3-8b-instruct, 60 test resumes, 1507 judged pairs)
 
@@ -26,7 +26,7 @@ Tuned on dev: bm25: τ=0.85, α=0.2, hybrid: τ=0.85, α=0.3. App configuration 
 | dense | 0.661 | 0.722 |
 | hybrid | 0.694 | 0.743 |
 | bm25+rerank | 0.677 | 0.722 |
-| hybrid+rerank | 0.705 | 0.743 |
+| hybrid+rerank ← app | 0.705 | 0.743 |
 
 Paired bootstrap (95% CI):
 
@@ -37,7 +37,9 @@ Paired bootstrap (95% CI):
 
 Sanity check: the judge gives each resume's source job a mean grade of 2.36 / 3 (n = 53) vs. 1.90 for other retrieved jobs. Grades 0: 199, 1: 260, 2: 510, 3: 531; 7 unparseable outputs (truncated) count as 0.
 
-**Explanations and serving** (10 test resumes × top 5, app pipeline, laptop CPU)
+**L2 on dev** (60 dev resumes, 1464 pairs), used to choose the app configuration: nDCG@10 bm25 0.731 · dense 0.736 · hybrid 0.773 · bm25+rerank 0.739 · hybrid+rerank 0.771. Best: `hybrid`.
+
+**Explanations and serving** (10 test resumes × top 5, app pipeline with bm25 retrieval, laptop CPU)
 
 - citation pass rate **95%** (quotes found verbatim in the posting)
 - missing-skill precision (lexical) **96%** (n = 304)

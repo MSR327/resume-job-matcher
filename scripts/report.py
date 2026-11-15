@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from jobmatch.config import MODE
+
 R = Path("results")
 
 
@@ -24,19 +26,20 @@ def main() -> None:
                 f"mean 4-gram overlap with the source posting {l1['overlap4_mean']:.1%})"), "",
                 "| configuration | Recall@1 | Recall@5 | Recall@10 | MRR |", "|---|---|---|---|---|"]
         for name, m in l1["test"].items():
-            tag = " ← app" if name == l1["dev_choice"] else ""
+            tag = " ← app" if name == f"{MODE}+rerank" else ""
             out.append(f"| {name}{tag} | {m['R@1']:.3f} | {m['R@5']:.3f} | {m['R@10']:.3f} | {m['MRR']:.3f} |")
         out += ["", "Paired bootstrap (95% CI, test):", ""]
         for k, (d, lo, hi) in l1["ci95"].items():
             out.append(f"- {k}: **{d:+.3f}** ({lo:+.3f} to {hi:+.3f})")
         tuned = ", ".join(f"{b}: τ={v['tau']}, α={v['alpha']}" for b, v in l1["tuned"].items())
-        out += ["", f"Tuned on dev: {tuned}. App configuration (best dev MRR): `{l1['dev_choice']}`.", ""]
+        out += ["", f"Tuned on dev: {tuned}. Best dev MRR: `{l1['dev_choice']}`.", ""]
     l2 = load("l2_judge.json")
     if l2:
         out += [f"**L2: LLM judge** ({l2['judge']}, {l2['n_resumes']} test resumes, {l2['n_pairs']} judged pairs)", "",
                 "| configuration | nDCG@10 | P@10 (grade ≥ 2) |", "|---|---|---|"]
         for name, m in l2["configs"].items():
-            out.append(f"| {name} | {m['nDCG@10']:.3f} | {m['P@10(grade>=2)']:.3f} |")
+            tag = " ← app" if name == f"{MODE}+rerank" else ""
+            out.append(f"| {name}{tag} | {m['nDCG@10']:.3f} | {m['P@10(grade>=2)']:.3f} |")
         out += ["", "Paired bootstrap (95% CI):", ""]
         for k, (d, lo, hi) in l2["ci95"].items():
             out.append(f"- {k}: **{d:+.3f}** ({lo:+.3f} to {hi:+.3f})")
@@ -44,6 +47,12 @@ def main() -> None:
         out += ["", (f"Sanity check: the judge gives each resume's source job a mean grade of "
                 f"{l2['source_job_grade_mean']:.2f} / 3 (n = {l2['n_source_judged']}) vs. {l2['other_job_grade_mean']:.2f} for other retrieved jobs. "
                 f"Grades {dist}; {l2['failed_judgments']} unparseable outputs (truncated) count as 0."), ""]
+    l2d = load("l2_judge_dev.json")
+    if l2d:
+        best = max(l2d["configs"], key=lambda c: l2d["configs"][c]["nDCG@10"])
+        row = " · ".join(f"{c} {m['nDCG@10']:.3f}" for c, m in l2d["configs"].items())
+        out += [(f"**L2 on dev** ({l2d['n_resumes']} dev resumes, {l2d['n_pairs']} pairs), used to choose the app "
+                 f"configuration: nDCG@10 {row}. Best: `{best}`."), ""]
     l3 = load("l3_agreement.json")
     if l3:
         out += [f"**L3: judge vs. human** (n = {l3['n']} pairs, labeled blind)", "",
@@ -54,7 +63,7 @@ def main() -> None:
     ex = load("explanations.json")
     if ex:
         p50, p95 = ex["latency_p50_s"], ex["latency_p95_s"]
-        out += [f"**Explanations and serving** ({ex['n_resumes']} test resumes × top {ex['k']}, app pipeline, laptop CPU)", "",
+        out += [f"**Explanations and serving** ({ex['n_resumes']} test resumes × top {ex['k']}, app pipeline with {ex['mode']} retrieval, laptop CPU)", "",
                 f"- citation pass rate **{ex['citation_pass_rate']:.0%}** (quotes found verbatim in the posting)",
                 (f"- missing-skill precision (lexical) **{ex['missing_skill_precision_lexical']:.0%}** "
                 f"(n = {ex['n_missing_skills']})"),

@@ -34,13 +34,16 @@ def _scores():
     retr = HybridRetriever(bm25, arr["job_vecs"], lambda text: qv[text])
     ids = jobs["job_id"].tolist()
     out = {}
-    for mode in ("bm25", "dense", "hybrid", "rerank"):
+    alpha = q["alpha"] if isinstance(q["alpha"], dict) else {q["mode"]: q["alpha"]}  # tuned on dev, per base mode
+    for mode in ("bm25", "dense", "hybrid", "bm25+rerank", "hybrid+rerank"):
+        base = mode.removesuffix("+rerank")
+        if base != mode and base not in alpha:
+            continue
         ranked = []
         for qi, text in enumerate(q["texts"]):
-            # "rerank" = the app's configuration: its base mode + skill re-rank, frozen with the fixture.
-            cands = retr.search(text, k=50, depth=100, mode=q["mode"] if mode == "rerank" else mode)
-            if mode == "rerank":
-                cands = rerank(cands, {d: float(arr["coverage"][qi, d]) for d, _ in cands}, q["alpha"])
+            cands = retr.search(text, k=50, depth=100, mode=base)
+            if base != mode:
+                cands = rerank(cands, {d: float(arr["coverage"][qi, d]) for d, _ in cands}, alpha[base])
             ranked.append([ids[d] for d, _ in cands])
         out[mode] = {"R@10": recall_at_k(ranked, q["gold_job_ids"], 10), "MRR": mrr(ranked, q["gold_job_ids"])}
     return out
