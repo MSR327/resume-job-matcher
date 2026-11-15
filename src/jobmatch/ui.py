@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import streamlit as st
 
 from .pipeline import Match
@@ -10,6 +12,19 @@ from .pipeline import Match
 def chips(items: list[str], color: str, limit: int = 12) -> str:
     shown = " ".join(f":{color}-badge[{s.replace('[', '(').replace(']', ')')}]" for s in items[:limit])
     return shown + (f" *+{len(items) - limit} more*" if len(items) > limit else "")
+
+
+def tidy_skills(items: list[str], max_words: int = 4) -> list[str]:
+    """Display-only cleanup of raw extractor spans (shown when no LLM explanation): split text run together across
+    sentences ("Docker.Experience"), drop sentence-length fragments, de-duplicate case-insensitively."""
+    out, seen = [], set()
+    for item in items:
+        for part in re.split(r"(?<=[A-Za-z0-9)])[.;](?=[A-Z][a-z]{2,})", item):
+            part = part.strip(" .,;:-")
+            if part and len(part.split()) <= max_words and part.lower() not in seen:
+                seen.add(part.lower())
+                out.append(part)
+    return out
 
 
 def render_match(rank: int, m: Match) -> None:
@@ -27,7 +42,7 @@ def render_match(rank: int, m: Match) -> None:
         else:
             if e is not None:
                 st.info("Explanation unavailable right now (LLM busy or failed), showing skill overlap only.")
-            have, miss = m.matched, m.missing
+            have, miss = tidy_skills(m.matched), tidy_skills(m.missing)
         if have:
             st.markdown("**You have:** " + chips(have, "green"))
         if miss:

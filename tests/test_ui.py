@@ -32,3 +32,11 @@ def test_render_paths():
     assert len(at.info) == 1  # only the failed explanation shows the fallback notice
     assert any(":orange-badge[(weird) skill]" in v for v in md)  # brackets can't break badge markup
     assert [m.value for m in at.metric] == ["50%", "25%", "0%"]
+
+
+def test_tidy_skills_cleans_raw_spans():
+    from jobmatch.ui import tidy_skills
+
+    raw = ["Docker.Experience", "docker", "Kubernetes", "continuously improve performance and user experience.Mentor junior",
+           "CI/CD;Terraform", "Python.", "ASP.NET", "Node.JS"]
+    assert tidy_skills(raw) == ["Docker", "Experience", "Kubernetes", "Mentor junior", "CI/CD", "Terraform", "Python", "ASP.NET", "Node.JS"]

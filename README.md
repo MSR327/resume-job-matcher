@@ -4,7 +4,7 @@ Paste a resume, get the best-matching tech jobs from **7,817 real LinkedIn posti
 the ones you're missing, and **quotes from each posting as evidence**. Every quote is checked against the posting,
 so the explanation can't invent requirements.
 
-**Live demo:** TBD · **Job index:** [srish327/tech-jobs-index](https://huggingface.co/datasets/srish327/tech-jobs-index) ·
+**Live demo:** [resume-job-matcher-msr.streamlit.app](https://resume-job-matcher-msr.streamlit.app) · **Job index:** [srish327/tech-jobs-index](https://huggingface.co/datasets/srish327/tech-jobs-index) ·
 **Skill model:** [srish327/deberta-v3-skillspan-crf](https://huggingface.co/srish327/deberta-v3-skillspan-crf)
 (from [project 1](https://github.com/MSR327/skillspan-ner))
 
