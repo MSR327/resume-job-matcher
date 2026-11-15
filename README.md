@@ -59,7 +59,10 @@ graded a good match or better), and explanations quote the posting verbatim **95
   which wins L1 dev MRR by +0.10 and powers the skill-coverage display. On test, L2 agrees
   (hybrid + re-rank is best, 0.705) and L1 doesn't (bm25 + re-rank is best); both are reported below.
 - **Skill re-ranking** clearly helps under L1 (hybrid: +7.3 MRR, CI +1.8 to +12.8) and is neutral under L2.
-- **Caveat:** an LLM judge may itself favor semantically similar text. L3 (blind human labels) checks how far to trust it.
+- **How far to trust the judge (L3):** on 50 pairs I labeled blind, the judge agrees with me at quadratic-weighted
+  **κ = 0.56** (within one grade 90% of the time), which is moderate. It is good enough to rank configurations
+  (gaps of 3–4 nDCG points), but read the absolute nDCG as approximate: the judge is a little lenient, mainly at the
+  top grade.
 
 **L1: synthetic resumes** (test n = 137; tuned on dev n = 100; mean 4-gram overlap with the source posting 0.7%)
 
@@ -101,6 +104,13 @@ Paired bootstrap (95% CI):
 Sanity check: the judge gives each resume's source job a mean grade of 2.36 / 3 (n = 53) vs. 1.90 for other retrieved jobs. Grades 0: 199, 1: 260, 2: 510, 3: 531; 7 unparseable outputs (truncated) count as 0.
 
 **L2 on dev** (60 dev resumes, 1464 pairs), used to choose the app configuration: nDCG@10 bm25 0.731 · dense 0.736 · hybrid 0.773 · bm25+rerank 0.739 · hybrid+rerank 0.771. Best: `hybrid`.
+
+**L3: judge vs. human** (n = 50 pairs, labeled blind)
+
+- quadratic-weighted κ **0.56**, exact agreement 42%, within one grade 90%
+- relevant / not relevant (grade ≥ 2) agreement 72%; judge minus human +0.12 grades on average
+- where they disagree: the judge's top grade is inflated. Of 12 pairs it called excellent, I called 9 "good" and 2
+  "excellent". Below that, the two mostly differ by one grade, and they never disagree by three.
 
 **Explanations and serving** (10 test resumes × top 5, app pipeline with bm25 retrieval, laptop CPU)
 

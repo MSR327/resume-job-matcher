@@ -1,0 +1,35 @@
+{
+  "n": 50,
+  "weighted_kappa_quadratic": 0.561578318055002,
+  "exact_agreement": 0.42,
+  "within_one": 0.9,
+  "mean_abs_diff": 0.68,
+  "judge_minus_human_mean": 0.12,
+  "relevant_agreement(grade>=2)": 0.72,
+  "confusion_human_rows_judge_cols": [
+    [
+      7,
+      1,
+      1,
+      0
+    ],
+    [
+      4,
+      8,
+      6,
+      1
+    ],
+    [
+      2,
+      3,
+      4,
+      9
+    ],
+    [
+      0,
+      1,
+      1,
+      2
+    ]
+  ]
+}

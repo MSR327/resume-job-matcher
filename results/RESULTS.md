@@ -39,6 +39,11 @@ Sanity check: the judge gives each resume's source job a mean grade of 2.36 / 3 
 
 **L2 on dev** (60 dev resumes, 1464 pairs), used to choose the app configuration: nDCG@10 bm25 0.731 · dense 0.736 · hybrid 0.773 · bm25+rerank 0.739 · hybrid+rerank 0.771. Best: `hybrid`.
 
+**L3: judge vs. human** (n = 50 pairs, labeled blind)
+
+- quadratic-weighted κ **0.56**, exact agreement 42%, within one grade 90%
+- relevant / not relevant (grade ≥ 2) agreement 72%; judge minus human +0.12 grades on average
+
 **Explanations and serving** (10 test resumes × top 5, app pipeline with bm25 retrieval, laptop CPU)
 
 - citation pass rate **95%** (quotes found verbatim in the posting)
