@@ -60,10 +60,11 @@ def load_matcher():
     key = _secret("GROQ_API_KEY")
     # One quick retry on a rate limit (free tier is per minute); otherwise fail fast and show the fallback.
     llm = groq(key, timeout=25, rate_limit_retries=1, max_wait=3.0) if key else None
-    # Optional: the distilled student (explain-distill) on a CPU Space answers first; Groq covers cold starts/errors.
+    # Optional: the distilled student (explain-distill, a llama-server on CPU) as the unlimited fallback. Groq stays
+    # first: it answers in ~2 s, the 0.6B student needs ~25-60 s on CPU (explain-distill serving benchmark).
     if student_url := _secret("STUDENT_URL"):
-        student = llama_server(student_url, api_key=_secret("STUDENT_API_KEY"), timeout=60)
-        llm = FallbackLLM(student, llm) if llm else student
+        student = llama_server(student_url, api_key=_secret("STUDENT_API_KEY"), timeout=120)
+        llm = FallbackLLM(llm, student) if llm else student
     return Matcher(
         index,
         embed_query=emb.query,

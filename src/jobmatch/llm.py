@@ -159,7 +159,7 @@ def llama_server(base_url: str, model: str = "student", api_key: str | None = No
 
 
 class FallbackLLM:
-    """Try `primary` (e.g. the self-hosted student), and on any LLMError use `fallback` (e.g. Groq).
+    """Try `primary` (e.g. Groq), and on any LLMError use `fallback` (e.g. the self-hosted distilled student).
 
     The response's `model` says which one answered, so telemetry and cost reflect the path actually taken.
     """
